@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/cristianradulescu/kmodtui/internal/kmod"
 )
 
 // ANSI styling for text written into gocui views (the fork parses SGR codes).
@@ -276,3 +278,7 @@ func indentWrap(s string, width, extra int) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+// errText renders an error for display. Error text can embed command stderr
+// and file contents, so it is cleaned like any other external text.
+func errText(err error) string { return kmod.Clean(err.Error()) }

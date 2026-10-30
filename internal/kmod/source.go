@@ -77,10 +77,11 @@ func (s *Source) readFile(p string) ([]byte, error) {
 	return os.ReadFile(s.path(p))
 }
 
-// readString reads a small attribute file and trims surrounding whitespace.
+// readString reads a small attribute file, trims surrounding whitespace and
+// cleans control characters (see Clean).
 func (s *Source) readString(p string) (string, error) {
 	b, err := s.readFile(p)
-	return strings.TrimSpace(string(b)), err
+	return Clean(strings.TrimSpace(string(b))), err
 }
 
 func (s *Source) readDir(p string) ([]fs.DirEntry, error) {
@@ -98,7 +99,7 @@ func (s *Source) linkName(p string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Base(target), nil
+	return Clean(filepath.Base(target)), nil
 }
 
 func (s *Source) exists(p string) bool {

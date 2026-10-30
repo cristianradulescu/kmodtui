@@ -75,7 +75,7 @@ func ParseIDs(r io.Reader) (*IDDB, error) {
 // splitID splits "1002  Advanced Micro Devices" at the two-space separator.
 func splitID(s string) (id, name string, ok bool) {
 	id, name, ok = strings.Cut(s, "  ")
-	return strings.TrimSpace(id), strings.TrimSpace(name), ok
+	return strings.TrimSpace(id), Clean(strings.TrimSpace(name)), ok
 }
 
 func isHex(s string) bool {

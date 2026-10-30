@@ -58,6 +58,11 @@ never modify files outside this repo.
   the core promise of the tool: the user can always fall back to the CLI.
 - Missing or unreadable files are normal (containers, non-EFI machines,
   root-only params). Show a clear message in the panel / log; never panic.
+- Text from sysfs, modinfo, ID databases and config files is untrusted (a USB
+  device picks its own product string): parsers pass it through
+  `kmod.Clean`, and the UI renders errors with `errText`. Never write raw
+  external text into a view; ESC or a newline would restyle the UI or split
+  a list row so it no longer matches the selected item.
 - Module names are normalized with `kmod.Normalize` (`-` -> `_`) before
   comparing; /proc/modules uses `_`, modules.dep file names often use `-`.
 - Prefer the standard library. Ask before adding any dependency (tests use

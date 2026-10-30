@@ -34,19 +34,19 @@ func (s *Source) Params(module string) ([]Param, Op) {
 	}
 	params := make([]Param, 0, len(entries))
 	for _, e := range entries {
-		p := Param{Name: e.Name()}
+		p := Param{Name: Clean(e.Name())}
 		file := path.Join(dir, e.Name())
 		b, err := s.readFile(file)
 		switch {
 		case err == nil:
-			p.Value = strings.TrimRight(string(b), "\n")
+			p.Value = Clean(strings.TrimRight(string(b), "\n"))
 		case errors.Is(err, fs.ErrPermission):
 			p.Unreadable = "root only"
 			if fi, serr := s.stat(file); serr == nil && fi.Mode().Perm()&0o444 == 0 {
 				p.Unreadable = "write-only"
 			}
 		default:
-			p.Unreadable = err.Error()
+			p.Unreadable = Clean(err.Error())
 		}
 		params = append(params, p)
 	}

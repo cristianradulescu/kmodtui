@@ -36,7 +36,7 @@ func ParseModulesAlias(r io.Reader) (*AliasIndex, error) {
 			continue
 		}
 		bus := aliasBus(f[1])
-		idx.byBus[bus] = append(idx.byBus[bus], aliasEntry{pattern: f[1], module: Normalize(f[2])})
+		idx.byBus[bus] = append(idx.byBus[bus], aliasEntry{pattern: f[1], module: Normalize(Clean(f[2]))})
 	}
 	return idx, sc.Err()
 }

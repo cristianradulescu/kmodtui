@@ -71,16 +71,16 @@ func parseProcModulesLine(line string) (Module, error) {
 			return Module{}, fmt.Errorf("bad use count %q for %s", f[2], f[0])
 		}
 	}
-	m := Module{Name: f[0], Size: size, RefCount: ref, State: f[4]}
+	m := Module{Name: Clean(f[0]), Size: size, RefCount: ref, State: Clean(f[4])}
 	if f[3] != "-" {
 		for _, h := range strings.Split(f[3], ",") {
 			if h != "" {
-				m.UsedBy = append(m.UsedBy, h)
+				m.UsedBy = append(m.UsedBy, Clean(h))
 			}
 		}
 	}
 	if last := f[len(f)-1]; len(f) > 6 && strings.HasPrefix(last, "(") && strings.HasSuffix(last, ")") {
-		m.Taint = strings.Trim(last, "()")
+		m.Taint = Clean(strings.Trim(last, "()"))
 	}
 	return m, nil
 }

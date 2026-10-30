@@ -401,3 +401,28 @@ func TestTinyTerminal(t *testing.T) {
 		})
 	}
 }
+
+// A device whose product string contains escape sequences and a newline must
+// render as one inert row, keeping rows and list items aligned.
+func TestHostileDeviceStringsStayOnOneRow(t *testing.T) {
+	root := t.TempDir()
+	dev := filepath.Join(root, "sys/bus/usb/devices/2-1")
+	if err := os.MkdirAll(dev, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range map[string]string{
+		"idVendor": "dead\n", "idProduct": "beef\n", "product": "Evil\x1b[2J\nFake row\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dev, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a := newTestApp(t, root, 120, 40)
+	if err := a.press(t, ']'); err != nil {
+		t.Fatal(err)
+	}
+	rows := strings.Split(strings.TrimRight(a.viewText(t, viewModules), "\n"), "\n")
+	if len(rows) != 1 || !strings.Contains(rows[0], "Evil�[2J�Fake") {
+		t.Errorf("device rows = %q, want one row with the escape neutralized", rows)
+	}
+}

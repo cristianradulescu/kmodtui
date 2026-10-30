@@ -34,7 +34,7 @@ func ModuleNameFromPath(p string) string {
 	if i := strings.Index(base, ".ko"); i >= 0 {
 		base = base[:i]
 	}
-	return Normalize(base)
+	return Normalize(Clean(base))
 }
 
 func newDepIndex() *DepIndex {

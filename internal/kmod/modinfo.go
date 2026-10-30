@@ -46,7 +46,7 @@ func ParseModinfo(out string) ModInfo {
 		}
 		if line[0] == '\t' || line[0] == ' ' {
 			if n := len(mi.Fields); n > 0 {
-				mi.Fields[n-1].Value += "\n" + strings.TrimSpace(line)
+				mi.Fields[n-1].Value += "\n" + Clean(strings.TrimSpace(line))
 			}
 			continue
 		}
@@ -54,7 +54,7 @@ func ParseModinfo(out string) ModInfo {
 		if !ok {
 			continue
 		}
-		f := Field{Key: key, Value: strings.TrimSpace(val)}
+		f := Field{Key: Clean(key), Value: Clean(strings.TrimSpace(val))}
 		mi.Fields = append(mi.Fields, f)
 		if key == "parm" {
 			mi.Params = append(mi.Params, parseParm(f.Value))

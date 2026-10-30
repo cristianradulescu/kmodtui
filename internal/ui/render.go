@@ -145,7 +145,7 @@ func (a *App) writeModuleRows(v *gocui.View, width int) {
 	if a.mods.len() == 0 {
 		switch {
 		case a.loadedErr != nil && len(a.loaded) == 0:
-			fmt.Fprint(v, red("Cannot list modules: "+a.loadedErr.Error()))
+			fmt.Fprint(v, red("Cannot list modules: "+errText(a.loadedErr)))
 		case a.filters[tabModules] != "":
 			fmt.Fprint(v, dim("No modules match the filter"))
 		default:
@@ -216,7 +216,7 @@ func (a *App) writeDeviceRows(v *gocui.View, width int) {
 	if a.devs.len() == 0 {
 		switch {
 		case a.devicesErr != nil && len(a.devices) == 0:
-			fmt.Fprint(v, red("Cannot list devices: "+a.devicesErr.Error()))
+			fmt.Fprint(v, red("Cannot list devices: "+errText(a.devicesErr)))
 		case a.filters[tabDevices] != "":
 			fmt.Fprint(v, dim("No devices match the filter"))
 		default:
@@ -298,7 +298,7 @@ func (a *App) renderBoot() {
 		}
 		fmt.Fprint(v, sb.String())
 	case a.bootErr != nil:
-		fmt.Fprint(v, red("Cannot read boot config: "+a.bootErr.Error()))
+		fmt.Fprint(v, red("Cannot read boot config: "+errText(a.bootErr)))
 	default:
 		fmt.Fprint(v, dim("No entries managed by kmodtui"))
 	}
@@ -354,7 +354,7 @@ func (a *App) logOps(ops ...kmod.Op) {
 	for _, op := range ops {
 		a.appendLog(cyan("$ "+op.Cmd) + "  " + dim("# "+op.Desc))
 		if op.Err != nil {
-			a.appendLog("  " + red(op.Err.Error()))
+			a.appendLog("  " + red(errText(op.Err)))
 		}
 	}
 }
@@ -526,7 +526,7 @@ func (a *App) moduleDetails() string {
 	case mi == nil:
 		d.field("modinfo", dim("loading…"))
 	case mi.infoErr != nil:
-		d.field("modinfo", red(mi.infoErr.Error()))
+		d.field("modinfo", red(errText(mi.infoErr)))
 	default:
 		a.modinfoFields(d, e, mi.info)
 	}
@@ -666,7 +666,7 @@ func (a *App) paramSection(d *details, e kmod.Entry, mi *moduleInfo) {
 	}
 	d.section(title)
 	if mi.paramsErr != nil {
-		d.line("  " + red(mi.paramsErr.Error()))
+		d.line("  " + red(errText(mi.paramsErr)))
 	}
 	valueW := 0
 	for _, r := range sorted {
@@ -804,13 +804,13 @@ func (a *App) statusDetails() string {
 	d.line("")
 	st := a.status
 	if err := a.statusErr(0); err != nil {
-		d.field("Kernel", red(err.Error()))
+		d.field("Kernel", red(errText(err)))
 	} else {
 		d.field("Kernel", st.Release)
 	}
 
 	if err := a.statusErr(1); err != nil {
-		d.field("Secure Boot", red(err.Error()))
+		d.field("Secure Boot", red(errText(err)))
 	} else {
 		d.field("Secure Boot", secureBootText(st.SecureBoot, nil))
 		for _, n := range st.SecureBoot.Notes {
@@ -819,7 +819,7 @@ func (a *App) statusDetails() string {
 	}
 
 	if err := a.statusErr(2); err != nil {
-		d.field("Taint", red(err.Error()))
+		d.field("Taint", red(errText(err)))
 	} else {
 		d.field("Taint", taintText(st, nil))
 		for _, f := range st.TaintFlags {
@@ -856,7 +856,7 @@ func (a *App) bootDetails() string {
 		d.field("modules-load", kmod.ModulesLoadConf+dim("  (load at boot)"))
 		d.line("")
 		if a.bootErr != nil {
-			d.line(red(a.bootErr.Error()))
+			d.line(red(errText(a.bootErr)))
 		} else {
 			d.line(dim("Neither has entries yet. Editing them is planned for phase 2."))
 		}

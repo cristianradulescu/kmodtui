@@ -65,7 +65,7 @@ func ParseModprobeConf(r io.Reader, file string) ([]BootEntry, error) {
 			continue
 		}
 		line, pending = pending+line, ""
-		f := strings.Fields(line)
+		f := strings.Fields(Clean(strings.ReplaceAll(line, "\t", " ")))
 		if len(f) == 0 || strings.HasPrefix(f[0], "#") {
 			continue
 		}
@@ -92,11 +92,11 @@ func ParseModulesLoad(r io.Reader, file string) ([]BootEntry, error) {
 	var entries []BootEntry
 	sc := bufio.NewScanner(r)
 	for n := 1; sc.Scan(); n++ {
-		line := strings.TrimSpace(sc.Text())
+		line := Clean(strings.TrimSpace(sc.Text()))
 		if line == "" || line[0] == '#' || line[0] == ';' {
 			continue
 		}
-		if strings.ContainsAny(line, " \t") {
+		if strings.ContainsAny(line, " \uFFFD") {
 			return entries, fmt.Errorf("%s:%d: expected one module name, got %q", file, n, line)
 		}
 		entries = append(entries, BootEntry{Kind: BootLoad, Module: line, File: file, Line: n})
