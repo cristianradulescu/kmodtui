@@ -1,0 +1,16 @@
+# Build output
+/bin/
+/dist/
+/kmodtui
+/kmodtui-helper
+
+# Go test / coverage artifacts
+*.test
+*.out
+coverage.*
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*~
