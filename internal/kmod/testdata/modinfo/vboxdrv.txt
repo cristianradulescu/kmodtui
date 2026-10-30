@@ -1,0 +1,12 @@
+filename:       /lib/modules/7.0.0-38-generic/updates/dkms/vboxdrv.ko.zst
+version:        7.2.4_Ubuntu r170995 (0x00340001)
+license:        GPL
+description:    Oracle VirtualBox Support Driver
+author:         Oracle and/or its affiliates
+srcversion:     2C1E44AA0B3E76E9F0E3D3F
+depends:        
+retpoline:      Y
+name:           vboxdrv
+vermagic:       7.0.0-38-generic SMP preempt mod_unload modversions 
+parm:           force_async_tsc:force the asynchronous TSC mode (int)
+parm:           cpu_check:Enable/disable the CPU compatibility check (bool)

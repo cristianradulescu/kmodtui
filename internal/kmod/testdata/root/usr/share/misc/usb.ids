@@ -1,0 +1,31 @@
+#
+#	List of USB ID's
+#
+#	Maintained by Stephen J. Gowdy <linux.usb.ids@gmail.com>
+#	If you have any new entries, please submit them via
+#		http://www.linux-usb.org/usb-ids.html
+#	or send entries as patches (diff -u old new) in the
+#	body of your email (a bot will attempt to deal with it).
+#	The latest version can be obtained from
+#		http://www.linux-usb.org/usb.ids
+#
+# Version: 2025.12.13
+0489  Foxconn / Hon Hai
+174f  Syntek
+1d6b  Linux Foundation
+	0002  2.0 root hub
+	0003  3.0 root hub
+C 0e  Video
+	00  Undefined
+	01  Video Control
+	02  Video Streaming
+	03  Video Interface Collection
+C e0  Wireless
+	01  Radio Frequency
+		01  Bluetooth
+		02  Ultra WideBand Radio Control
+		03  RNDIS
+	02  Wireless USB Wire Adapter
+		01  Host Wire Adapter Control/Data Streaming
+		02  Device Wire Adapter Control/Data Streaming
+		03  Device Wire Adapter Isochronous Streaming

@@ -1,0 +1,26 @@
+# Aliases extracted from modules themselves.
+alias pci:v*d*sv*sd*bc01sc08i02* nvme
+alias pci:v0000106Bd00002005sv*sd*bc*sc*i* nvme
+alias pci:v0000106Bd00002003sv*sd*bc*sc*i* nvme
+alias pci:v0000106Bd00002001sv*sd*bc*sc*i* nvme
+alias pci:v00001002d*sv*sd*bc12sc00i00* amdgpu
+alias pci:v00001002d*sv*sd*bc03sc80i00* amdgpu
+alias pci:v00001002d*sv*sd*bc03sc00i00* amdgpu
+alias pci:v00001002d0000743Fsv*sd*bc*sc*i* amdgpu
+alias pci:v000014C3d00000717sv*sd*bc*sc*i* mt7925e
+alias pci:v000014C3d00007925sv*sd*bc*sc*i* mt7925e
+alias usb:v8087p0A5Ad*dc*dsc*dp*ic*isc*ip*in* btusb
+alias usb:v0930p*d*dc*dsc*dp*icFFisc01ip01in* btusb
+alias usb:v413Cp*d*dc*dsc*dp*icFFisc01ip01in* btusb
+alias usb:v13D3p*d*dc*dsc*dp*icFFisc01ip01in* btusb
+alias usb:v*p*d*dc*dsc*dp*ic0Eisc01ip01in* uvcvideo
+alias usb:v*p*d*dc*dsc*dp*ic0Eisc01ip00in* uvcvideo
+alias usb:v8086p1155d*dc*dsc*dp*ic0Eisc01ip00in* uvcvideo
+alias usb:v8086p0B5Cd*dc*dsc*dp*ic0Eisc01ip00in* uvcvideo
+alias pci:v00000014d00007A37sv*sd*bc*sc*i* snd_hda_intel
+alias pci:v00000014d00007A07sv*sd*bc*sc*i* snd_hda_intel
+alias pci:v00001D17d00009146sv*sd*bc*sc*i* snd_hda_intel
+alias pci:v00001D17d00009145sv*sd*bc*sc*i* snd_hda_intel
+alias pci:v00001022d000017F0sv*sd*bc*sc*i* amdxdna
+alias pci:v00001022d00001502sv*sd*bc*sc*i* amdxdna
+alias usb:v*p*d*dc*dsc*dp*icE0isc01ip01in* btusb

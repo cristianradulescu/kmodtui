@@ -1,0 +1,28 @@
+bridge 425984 0 - Live 0x0000000000000000
+stp 12288 1 bridge, Live 0x0000000000000000
+llc 16384 2 bridge,stp, Live 0x0000000000000000
+rfcomm 110592 4 - Live 0x0000000000000000
+btusb 81920 0 - Live 0x0000000000000000
+bluetooth 1134592 34 rfcomm,bnep,btusb,btmtk,btrtl,btbcm,btintel, Live 0x0000000000000000
+uvcvideo 147456 0 - Live 0x0000000000000000
+amdgpu 21585920 31 - Live 0x0000000000000000
+mt7925e 24576 0 - Live 0x0000000000000000
+mt7925_common 163840 1 mt7925e, Live 0x0000000000000000
+mt792x_lib 73728 2 mt7925e,mt7925_common, Live 0x0000000000000000
+videobuf2_common 90112 4 uvcvideo,videobuf2_vmalloc,videobuf2_memops,videobuf2_v4l2, Live 0x0000000000000000
+amdxcp 12288 1 amdgpu, Live 0x0000000000000000
+snd_hda_intel 65536 10 - Live 0x0000000000000000
+mt76 167936 4 mt7925e,mt7925_common,mt792x_lib,mt76_connac_lib, Live 0x0000000000000000
+drm_buddy 28672 1 amdgpu, Live 0x0000000000000000
+mac80211 1937408 4 mt7925_common,mt792x_lib,mt76_connac_lib,mt76, Live 0x0000000000000000
+ttm 139264 2 amdgpu,drm_ttm_helper, Live 0x0000000000000000
+cfg80211 1548288 4 mt7925_common,mt76_connac_lib,mt76,mac80211, Live 0x0000000000000000
+snd 147456 49 snd_acp_legacy_mach,snd_acp_mach,snd_sof,snd_hda_codec_alc269,snd_hda_codec_realtek_lib,snd_soc_sdca,snd_hda_codec_generic,snd_soc_core,snd_compress,snd_ctl_led,snd_hda_codec_hdmi,snd_hda_intel,snd_hda_codec,snd_rawmidi,snd_hwdep,snd_seq,snd_pcm,snd_seq_device,snd_timer, Live 0x0000000000000000
+nvme 69632 3 - Live 0x0000000000000000
+nvme_core 241664 4 nvme, Live 0x0000000000000000
+nvme_keyring 20480 1 nvme_core, Live 0x0000000000000000
+nvme_auth 28672 1 nvme_core, Live 0x0000000000000000
+hkdf 12288 1 nvme_auth, Live 0x0000000000000000
+vboxnetadp 28672 0 - Live 0x0000000000000000 (OE)
+vboxnetflt 32768 0 - Live 0x0000000000000000 (OE)
+vboxdrv 696320 2 vboxnetadp,vboxnetflt, Live 0x0000000000000000 (OE)

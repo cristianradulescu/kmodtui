@@ -1,0 +1,11 @@
+name:           xhci_hcd
+filename:       (builtin)
+license:        GPL
+file:           drivers/usb/host/xhci-hcd
+author:         Sarah Sharp
+description:    'eXtensible' Host Controller (xHC) Driver
+license:        GPL
+file:           drivers/usb/host/xhci-hcd
+description:    xHCI sideband driver for secondary interrupter management
+parm:           link_quirk:Don't clear the chain bit on a link TRB (int)
+parm:           quirks:Bit flags for quirks to be enabled as default (ullong)

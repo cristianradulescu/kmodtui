@@ -1,0 +1,31 @@
+kernel/crypto/hkdf.ko.zst:
+kernel/drivers/nvme/common/nvme-auth.ko.zst: kernel/crypto/hkdf.ko.zst
+kernel/drivers/nvme/common/nvme-keyring.ko.zst:
+kernel/drivers/nvme/host/nvme-core.ko.zst: kernel/drivers/nvme/common/nvme-keyring.ko.zst kernel/drivers/nvme/common/nvme-auth.ko.zst kernel/crypto/hkdf.ko.zst
+kernel/drivers/nvme/host/nvme.ko.zst: kernel/drivers/nvme/host/nvme-core.ko.zst kernel/drivers/nvme/common/nvme-keyring.ko.zst kernel/drivers/nvme/common/nvme-auth.ko.zst kernel/crypto/hkdf.ko.zst
+kernel/drivers/gpu/drm/drm_buddy.ko.zst:
+kernel/drivers/gpu/drm/ttm/ttm.ko.zst:
+kernel/drivers/gpu/drm/amd/amdgpu/amdgpu.ko.zst: kernel/drivers/gpu/drm/amd/amdxcp/amdxcp.ko.zst kernel/drivers/gpu/drm/drm_panel_backlight_quirks.ko.zst kernel/drivers/gpu/drm/scheduler/gpu-sched.ko.zst kernel/drivers/gpu/drm/drm_buddy.ko.zst kernel/drivers/gpu/drm/drm_ttm_helper.ko.zst kernel/drivers/gpu/drm/ttm/ttm.ko.zst kernel/drivers/gpu/drm/drm_exec.ko.zst kernel/drivers/gpu/drm/drm_suballoc_helper.ko.zst kernel/drivers/gpu/drm/display/drm_display_helper.ko.zst kernel/drivers/media/cec/core/cec.ko.zst kernel/drivers/media/rc/rc-core.ko.zst kernel/drivers/i2c/algos/i2c-algo-bit.ko.zst kernel/drivers/acpi/video.ko.zst kernel/drivers/platform/wmi/wmi.ko.zst
+kernel/drivers/gpu/drm/amd/amdxcp/amdxcp.ko.zst:
+kernel/drivers/net/ethernet/intel/e1000e/e1000e.ko.zst:
+kernel/drivers/net/ethernet/realtek/r8169.ko.zst:
+kernel/drivers/net/wireless/mediatek/mt76/mt76.ko.zst: kernel/net/mac80211/mac80211.ko.zst kernel/net/wireless/cfg80211.ko.zst kernel/lib/crypto/libarc4.ko.zst
+kernel/drivers/net/wireless/mediatek/mt76/mt792x-lib.ko.zst: kernel/drivers/net/wireless/mediatek/mt76/mt76-connac-lib.ko.zst kernel/drivers/net/wireless/mediatek/mt76/mt76.ko.zst kernel/net/mac80211/mac80211.ko.zst kernel/net/wireless/cfg80211.ko.zst kernel/lib/crypto/libarc4.ko.zst
+kernel/drivers/net/wireless/mediatek/mt76/mt7925/mt7925-common.ko.zst: kernel/drivers/net/wireless/mediatek/mt76/mt792x-lib.ko.zst kernel/drivers/net/wireless/mediatek/mt76/mt76-connac-lib.ko.zst kernel/drivers/net/wireless/mediatek/mt76/mt76.ko.zst kernel/net/mac80211/mac80211.ko.zst kernel/net/wireless/cfg80211.ko.zst kernel/lib/crypto/libarc4.ko.zst
+kernel/drivers/net/wireless/mediatek/mt76/mt7925/mt7925e.ko.zst: kernel/drivers/net/wireless/mediatek/mt76/mt7925/mt7925-common.ko.zst kernel/drivers/net/wireless/mediatek/mt76/mt792x-lib.ko.zst kernel/drivers/net/wireless/mediatek/mt76/mt76-connac-lib.ko.zst kernel/drivers/net/wireless/mediatek/mt76/mt76.ko.zst kernel/net/mac80211/mac80211.ko.zst kernel/net/wireless/cfg80211.ko.zst kernel/lib/crypto/libarc4.ko.zst
+kernel/drivers/media/common/videobuf2/videobuf2-common.ko.zst: kernel/drivers/media/mc/mc.ko.zst
+kernel/drivers/media/usb/uvc/uvcvideo.ko.zst: kernel/drivers/media/common/videobuf2/videobuf2-vmalloc.ko.zst kernel/drivers/media/common/uvc.ko.zst kernel/drivers/media/common/videobuf2/videobuf2-memops.ko.zst kernel/drivers/media/common/videobuf2/videobuf2-v4l2.ko.zst kernel/drivers/media/common/videobuf2/videobuf2-common.ko.zst kernel/drivers/media/v4l2-core/videodev.ko.zst kernel/drivers/media/mc/mc.ko.zst
+kernel/drivers/accel/amdxdna/amdxdna.ko.zst: kernel/drivers/platform/x86/amd/pmf/amd-pmf.ko.zst kernel/drivers/hid/amd-sfh-hid/amd_sfh.ko.zst kernel/drivers/tee/tee.ko.zst kernel/drivers/gpu/drm/scheduler/gpu-sched.ko.zst kernel/drivers/hid/hid.ko.zst kernel/drivers/acpi/platform_profile.ko.zst
+kernel/drivers/bluetooth/btusb.ko.zst: kernel/drivers/bluetooth/btmtk.ko.zst kernel/drivers/bluetooth/btrtl.ko.zst kernel/drivers/bluetooth/btbcm.ko.zst kernel/drivers/bluetooth/btintel.ko.zst kernel/net/bluetooth/bluetooth.ko.zst
+kernel/sound/core/snd.ko.zst: kernel/sound/soundcore.ko.zst
+kernel/sound/hda/controllers/snd-hda-intel.ko.zst: kernel/sound/hda/common/snd-hda-codec.ko.zst kernel/sound/hda/core/snd-hda-core.ko.zst kernel/sound/hda/core/snd-intel-dspcfg.ko.zst kernel/sound/hda/core/snd-intel-sdw-acpi.ko.zst kernel/sound/core/snd-hwdep.ko.zst kernel/sound/core/snd-pcm.ko.zst kernel/sound/core/snd-timer.ko.zst kernel/sound/core/snd.ko.zst kernel/sound/soundcore.ko.zst
+kernel/net/802/stp.ko.zst: kernel/net/llc/llc.ko.zst
+kernel/net/wireless/cfg80211.ko.zst:
+kernel/net/llc/llc.ko.zst:
+kernel/net/bridge/bridge.ko.zst: kernel/net/802/stp.ko.zst kernel/net/llc/llc.ko.zst
+kernel/net/bluetooth/bluetooth.ko.zst:
+kernel/net/bluetooth/rfcomm/rfcomm.ko.zst: kernel/net/bluetooth/bluetooth.ko.zst
+kernel/net/mac80211/mac80211.ko.zst: kernel/net/wireless/cfg80211.ko.zst kernel/lib/crypto/libarc4.ko.zst
+updates/dkms/vboxdrv.ko.zst:
+updates/dkms/vboxnetflt.ko.zst: updates/dkms/vboxdrv.ko.zst
+updates/dkms/vboxnetadp.ko.zst: updates/dkms/vboxdrv.ko.zst

@@ -1,0 +1,4 @@
+kernel/drivers/usb/core/usbcore.ko
+kernel/drivers/usb/host/xhci-hcd.ko
+kernel/drivers/usb/host/xhci-pci.ko
+kernel/fs/ext4/ext4.ko
