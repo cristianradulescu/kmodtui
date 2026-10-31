@@ -30,8 +30,11 @@ end-to-end check of writes is the user's: they run `sudo make install`.
 - `internal/helper` - the helper's subcommands, validation and atomic file
   writes; `Env{Root, Exec, Out}` makes it testable against a temp root.
 - `internal/kmod` - data sources, parsers, validators (`validate.go`) and the
-  pure config editors (`bootwrite.go`, `Edit*`). Must not import gocui or
-  anything UI-related.
+  pure config editors (`bootwrite.go`, `Edit*`). `allconf.go` reads every
+  modprobe.d / modules-load.d file with modprobe's override rules;
+  `why.go` explains why a module is loaded; `klog.go` reads the kernel
+  journal (`-D <root>/var/log/journal` for a fixture root). Must not import
+  gocui or anything UI-related.
 - `packaging/` - polkit policy template; `@HELPER@` is filled in by `make
   build` and must match `ui.HelperPath` (also set by the Makefile).
 - `internal/ui` - gocui views, keybindings, list state, rendering.
@@ -42,6 +45,12 @@ end-to-end check of writes is the user's: they run `sudo make install`.
   - `popups.go`: a stack of popups (filter, help, confirm, params, value,
     message). Open/close only through `openPopup`/`closePopup`; closing the
     last one refocuses the view that was focused before the first.
+  - `insight.go`: the Details sections that explain a module or device
+    (Config from all files, Why loaded, Kernel log). The kernel log loads
+    through `App.background` like modinfo and is cached per module/device
+    until `R`.
+  - Filters are kept per list (`listKey`: modules, devices, boot, allconf);
+    the filter popup applies to the panel it was opened from.
   - `actions.go`: one builder per write returning an `action` (helper argv,
     effects as plain commands, dry run, warnings, notes). Every write goes
     through `confirm(action)`; with warnings only `y` runs it. The

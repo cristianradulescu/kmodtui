@@ -70,10 +70,13 @@ type App struct {
 	boot       []kmod.BootEntry
 	bootErr    error
 	aliases    *kmod.AliasIndex
+	allConf    []kmod.BootEntry // every modprobe.d / modules-load.d entry
+	allConfErr error
 	mounts     map[string][]string
 	initramfs  bool // /etc/modprobe.d changed after the initramfs was built
 	info       map[string]*moduleInfo
 	pending    map[string]bool
+	klog       map[string]*kernelLog // kernel messages per module or device
 
 	// exec runs kmodtui-helper through pkexec; tests use a fake.
 	exec executor
@@ -84,12 +87,14 @@ type App struct {
 	mods         *list[kmod.Entry]
 	devs         *list[kmod.Device]
 	bootList     *list[kmod.BootEntry]
+	allList      *list[kmod.BootEntry] // Boot config panel, "All files" tab
+	bootTab      int
 	changes      *list[change]
-	filters      [2]string // per tab
-	context      string    // left panel whose selection Details shows
-	popups       []string  // open popups, topmost last
-	beforePopup  string    // view to refocus when the last popup closes
-	act          *action   // the action the confirm popup offers
+	filters      map[string]string // per list, see listKey
+	context      string            // left panel whose selection Details shows
+	popups       []string          // open popups, topmost last
+	beforePopup  string            // view to refocus when the last popup closes
+	act          *action           // the action the confirm popup offers
 	params       *list[paramRow]
 	paramModule  string
 	valueErr     string // why the last value typed in the value prompt was refused
@@ -108,6 +113,8 @@ func New(src *kmod.Source) *App {
 		context: viewModules,
 		info:    map[string]*moduleInfo{},
 		pending: map[string]bool{},
+		klog:    map[string]*kernelLog{},
+		filters: map[string]string{},
 	}
 	a.mods = newList(
 		func(e kmod.Entry) string { return e.Name },
@@ -117,6 +124,13 @@ func New(src *kmod.Source) *App {
 	a.bootList = newList(
 		func(e kmod.BootEntry) string { return fmt.Sprintf("%s:%d", e.File, e.Line) },
 		func(e kmod.BootEntry, q string) bool { return strings.Contains(e.Module, q) },
+	)
+	a.allList = newList(
+		func(e kmod.BootEntry) string { return fmt.Sprintf("%s:%d", e.File, e.Line) },
+		func(e kmod.BootEntry, q string) bool {
+			return strings.Contains(strings.ToLower(e.Kind.String()+" "+e.Module+" "+e.Args+" "+e.File), q) ||
+				strings.Contains(kmod.Normalize(strings.ToLower(e.Module)), kmod.Normalize(q))
+		},
 	)
 	a.changes = newList(func(c change) string { return c.key }, func(change, string) bool { return true })
 	a.params = newList(func(r paramRow) string { return r.name }, func(paramRow, string) bool { return true })
@@ -204,6 +218,9 @@ func (a *App) reload() {
 	a.boot, op = a.src.BootConfig()
 	a.bootErr = op.Err
 	a.logOps(op)
+	a.allConf, op = a.src.AllConfig()
+	a.allConfErr = op.Err
+	a.logOps(op)
 
 	a.mounts, op = a.src.Mounts()
 	a.logOps(op)
@@ -211,9 +228,11 @@ func (a *App) reload() {
 	a.logOps(op)
 
 	a.info = map[string]*moduleInfo{}
+	a.klog = map[string]*kernelLog{}
 	a.mods.set(kmod.Entries(a.loaded, a.idx, a.showAll))
 	a.devs.set(a.devices)
 	a.bootList.set(a.boot)
+	a.allList.set(a.allConf)
 	a.changes.set(a.computeChanges())
 }
 
@@ -250,6 +269,9 @@ func (a *App) layout(g *gocui.Gui) error {
 	lw := leftWidth(maxX)
 	statusH, changesH := 5, 3
 	bootH := min(max(a.bootList.len(), 1)+2, 6)
+	if a.context == viewBoot {
+		bootH = max(bootH, (h-statusH-changesH)/2)
+	}
 	modulesH := max(h-statusH-bootH-changesH, 3)
 	detailsH := max(h*2/3, 3)
 
@@ -316,7 +338,9 @@ func (a *App) configure(v *gocui.View) {
 		v.SelBgColor = gocui.ColorBlue
 		v.InactiveViewSelBgColor = gocui.ColorDefault // bold only when unfocused
 	case viewBoot:
-		v.TitlePrefix, v.Title = "[3]", "Boot config"
+		v.TitlePrefix = "[3]"
+		v.Tabs = []string{"Boot config", "All files"}
+		v.SelFgColor = gocui.ColorGreen | gocui.AttrBold // active tab
 		v.SelBgColor = gocui.ColorBlue
 		v.InactiveViewSelBgColor = gocui.ColorDefault
 	case viewChanges:
@@ -419,7 +443,7 @@ func (a *App) move(delta int) error {
 func (a *App) moveList(delta int) error {
 	switch a.currentView() {
 	case viewBoot:
-		a.bootList.move(delta)
+		a.bootPanelList().move(delta)
 		a.syncBootSelection()
 	case viewChanges:
 		a.changes.move(delta)
@@ -448,11 +472,29 @@ func (a *App) pageSize() int {
 }
 
 func (a *App) switchTab(delta int) error {
-	a.tab = (a.tab + delta + 2) % 2
-	a.renderModules()
+	if a.currentView() == viewBoot {
+		a.bootTab = (a.bootTab + delta + 2) % 2
+		a.renderBoot()
+	} else {
+		a.tab = (a.tab + delta + 2) % 2
+		a.renderModules()
+	}
 	a.renderDetails()
 	a.renderBar()
 	return nil
+}
+
+// listKey names the list a panel shows right now; filters are kept per list.
+func (a *App) listKey(view string) string {
+	switch {
+	case view == viewBoot && a.bootTab == 1:
+		return "allconf"
+	case view == viewBoot:
+		return "boot"
+	case a.tab == tabDevices:
+		return "devices"
+	}
+	return "modules"
 }
 
 func (a *App) toggleAll() error {
@@ -490,7 +532,7 @@ func (a *App) gotoDeviceModule() error {
 	for _, t := range targets {
 		t = kmod.Normalize(t)
 		a.tab = tabModules
-		a.filters[tabModules] = ""
+		a.filters["modules"] = ""
 		a.mods.setFilter("")
 		if !a.mods.selectKey(t) && !a.showAll {
 			a.showAll = true

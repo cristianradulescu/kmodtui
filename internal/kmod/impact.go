@@ -158,15 +158,7 @@ func Impact(module string, loaded []Module, devByMod map[string][]Device, mounts
 		}
 	}
 
-	// FUSE mounts carry a subtype ("fuse.portal"); the module is "fuse".
-	var types []string
-	for fstype := range mounts {
-		if Normalize(fstype) == name || strings.HasPrefix(fstype, name+".") {
-			types = append(types, fstype)
-		}
-	}
-	slices.Sort(types)
-	for _, fstype := range types {
+	for _, fstype := range mountedTypes(name, mounts) {
 		out = append(out, fmt.Sprintf("provides the %s filesystem mounted at %s", fstype, strings.Join(mounts[fstype], ", ")))
 	}
 	return out

@@ -23,7 +23,11 @@ const (
 	BootBlacklist BootKind = iota // "blacklist <mod>" in modprobe.d
 	BootOptions                   // "options <mod> <args>" in modprobe.d
 	BootLoad                      // "<mod>" in modules-load.d
-	BootOther                     // any other modprobe.d command, kept verbatim
+	BootOther                     // an unrecognized line, kept verbatim in Args
+	BootInstall                   // "install <mod> <command>": runs command instead of loading
+	BootRemove                    // "remove <mod> <command>": runs command instead of unloading
+	BootSoftdep                   // "softdep <mod> pre: ... post: ...": loads others around it
+	BootAlias                     // "alias <pattern> <mod>": Module is the target, Args the pattern
 )
 
 func (k BootKind) String() string {
@@ -34,22 +38,32 @@ func (k BootKind) String() string {
 		return "options"
 	case BootLoad:
 		return "load at boot"
+	case BootInstall:
+		return "install"
+	case BootRemove:
+		return "remove"
+	case BootSoftdep:
+		return "softdep"
+	case BootAlias:
+		return "alias"
 	}
 	return "other"
 }
 
-// BootEntry is one entry of a kmodtui-managed configuration file.
+// BootEntry is one entry of a modprobe.d or modules-load.d file.
 type BootEntry struct {
 	Kind   BootKind
 	Module string
-	Args   string // options arguments, or the full line for BootOther
-	File   string
-	Line   int
+	// Args: the options, the install/remove command, the softdep lists,
+	// the alias pattern, or the whole line for BootOther.
+	Args string
+	File string
+	Line int
 }
 
 // ParseModprobeConf parses modprobe.d(5) syntax: '#' comments, '\' line
-// continuation, and the commands blacklist / options (others are kept as
-// BootOther).
+// continuation, and the commands blacklist, options, install, remove,
+// softdep and alias. Anything else is kept as BootOther.
 func ParseModprobeConf(r io.Reader, file string) ([]BootEntry, error) {
 	var entries []BootEntry
 	sc := bufio.NewScanner(r)
@@ -75,6 +89,14 @@ func ParseModprobeConf(r io.Reader, file string) ([]BootEntry, error) {
 			e.Kind, e.Module = BootBlacklist, f[1]
 		case f[0] == "options" && len(f) >= 2:
 			e.Kind, e.Module, e.Args = BootOptions, f[1], strings.Join(f[2:], " ")
+		case f[0] == "install" && len(f) >= 3:
+			e.Kind, e.Module, e.Args = BootInstall, f[1], strings.Join(f[2:], " ")
+		case f[0] == "remove" && len(f) >= 3:
+			e.Kind, e.Module, e.Args = BootRemove, f[1], strings.Join(f[2:], " ")
+		case f[0] == "softdep" && len(f) >= 3:
+			e.Kind, e.Module, e.Args = BootSoftdep, f[1], strings.Join(f[2:], " ")
+		case f[0] == "alias" && len(f) == 3:
+			e.Kind, e.Module, e.Args = BootAlias, f[2], f[1]
 		default:
 			e.Kind, e.Args = BootOther, strings.Join(f, " ")
 			if len(f) >= 2 {

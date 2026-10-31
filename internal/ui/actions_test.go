@@ -135,7 +135,7 @@ func TestBlacklistToggle(t *testing.T) {
 	// uvcvideo is blacklisted in the fixture's kmodtui.conf.
 	a.selectModule(t, "uvcvideo")
 	assertContains(t, "bar", a.viewText(t, viewOptions), "Unblacklist: b")
-	assertContains(t, "details", a.viewText(t, viewDetails), "kmodtui.conf blacklisted")
+	assertContains(t, "details", a.viewText(t, viewDetails), "Config", "blacklist /etc/modprobe.d/kmodtui.conf:3 (kmodtui)")
 	a.mustPress(t, 'b')
 	assertEqual(t, "title", a.title(t, viewConfirm), "Remove the blacklist entry for uvcvideo")
 	assertContains(t, "confirm", a.viewText(t, viewConfirm), "kmodtui-helper unblacklist uvcvideo", "initramfs")

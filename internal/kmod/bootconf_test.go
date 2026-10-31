@@ -26,12 +26,19 @@ func TestParseModprobeConf(t *testing.T) {
 			want: []BootEntry{{Kind: BootOptions, Module: "iwlwifi", Args: "power_save=1", File: f, Line: 2}},
 		},
 		{
-			name: "other commands kept verbatim",
-			in:   "install floppy /bin/false\nsoftdep nvme pre: nvme_core\n",
+			name: "install, remove, softdep and alias",
+			in:   "install floppy /bin/false\nsoftdep nvme pre: nvme_core\nalias char-major-10-229 fuse\nremove iwlwifi \\\n(/sbin/lsmod | grep -o ^iwlmvm | xargs /sbin/rmmod) \\\n&& /sbin/modprobe -r mac80211\n",
 			want: []BootEntry{
-				{Kind: BootOther, Module: "floppy", Args: "install floppy /bin/false", File: f, Line: 1},
-				{Kind: BootOther, Module: "nvme", Args: "softdep nvme pre: nvme_core", File: f, Line: 2},
+				{Kind: BootInstall, Module: "floppy", Args: "/bin/false", File: f, Line: 1},
+				{Kind: BootSoftdep, Module: "nvme", Args: "pre: nvme_core", File: f, Line: 2},
+				{Kind: BootAlias, Module: "fuse", Args: "char-major-10-229", File: f, Line: 3},
+				{Kind: BootRemove, Module: "iwlwifi", Args: "(/sbin/lsmod | grep -o ^iwlmvm | xargs /sbin/rmmod) && /sbin/modprobe -r mac80211", File: f, Line: 4},
 			},
+		},
+		{
+			name: "unknown command kept verbatim",
+			in:   "frobnicate nvme now\n",
+			want: []BootEntry{{Kind: BootOther, Module: "nvme", Args: "frobnicate nvme now", File: f, Line: 1}},
 		},
 		{
 			name: "indented comment and blank lines",

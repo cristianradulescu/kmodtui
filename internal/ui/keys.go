@@ -75,9 +75,11 @@ func (a *App) defineBindings() []*binding {
 
 		{views: []string{viewModules}, keys: []any{gocui.KeyEnter}, label: "enter", desc: "Go to the device's module", bar: true,
 			hint: func() string { return "Go to module: enter" }, when: onDevicesTab, handler: a.gotoDeviceModule},
-		{views: []string{viewModules}, keys: []any{'/'}, label: "/", desc: "Filter", bar: true, handler: a.openFilter},
-		{views: []string{viewModules}, keys: []any{gocui.KeyEsc}, label: "esc", desc: "Clear filter", bar: true,
-			when: func() bool { return a.filters[a.tab] != "" }, handler: a.clearFilter},
+		{views: []string{viewModules, viewBoot}, keys: []any{'/'}, label: "/", desc: "Filter the list", bar: true,
+			hint: func() string { return "Filter: /" }, handler: a.openFilter},
+		{views: []string{viewModules, viewBoot}, keys: []any{gocui.KeyEsc}, label: "esc", desc: "Clear the filter", bar: true,
+			hint: func() string { return "Clear filter: esc" },
+			when: func() bool { return a.filters[a.listKey(a.currentView())] != "" }, handler: a.clearFilter},
 		{views: []string{viewModules}, keys: []any{'A'}, label: "A", desc: "Toggle loaded / all modules", bar: true,
 			hint: func() string {
 				if a.showAll {
@@ -85,8 +87,8 @@ func (a *App) defineBindings() []*binding {
 				}
 				return "All modules: A"
 			}, when: onModulesTab, handler: a.toggleAll},
-		{views: []string{viewModules}, keys: []any{'['}, label: "[", desc: "Previous tab", handler: func() error { return a.switchTab(-1) }},
-		{views: []string{viewModules}, keys: []any{']'}, label: "]", desc: "Next tab", bar: true,
+		{views: []string{viewModules, viewBoot}, keys: []any{'['}, label: "[", desc: "Previous tab", handler: func() error { return a.switchTab(-1) }},
+		{views: []string{viewModules, viewBoot}, keys: []any{']'}, label: "]", desc: "Next tab", bar: true,
 			hint: func() string { return "Tabs: [ ]" }, handler: func() error { return a.switchTab(1) }},
 
 		// Writes: each opens the confirmation dialog first.
@@ -101,9 +103,9 @@ func (a *App) defineBindings() []*binding {
 		{views: []string{viewModules}, keys: []any{'a'}, label: "a", desc: "Load at boot / stop loading at boot", bar: true,
 			hint: toggleHint(kmod.BootLoad, "Boot load: a", "No boot load: a"), when: knownModule, handler: a.toggleBootLoad},
 
-		{views: []string{viewBoot}, keys: []any{'d'}, label: "d", desc: "Remove the selected entry", bar: true,
+		{views: []string{viewBoot}, keys: []any{'d'}, label: "d", desc: "Remove the selected entry (kmodtui's files only)", bar: true,
 			hint: func() string { return "Remove: d" },
-			when: func() bool { _, ok := a.bootList.selected(); return ok }, handler: a.removeSelectedBootEntry},
+			when: func() bool { e, ok := a.bootPanelList().selected(); return ok && a.ownedByKmodtui(e) }, handler: a.removeSelectedBootEntry},
 		{views: []string{viewChanges}, keys: []any{gocui.KeyEnter}, label: "enter", desc: "Fix the selected item", bar: true,
 			hint: func() string { return "Fix: enter" },
 			when: func() bool { c, ok := a.changes.selected(); return ok && c.fix != nil }, handler: a.fixSelectedChange},

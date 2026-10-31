@@ -3,6 +3,7 @@ package ui
 import (
 	"cmp"
 	"fmt"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -121,7 +122,7 @@ func (a *App) syncModulesSelection() {
 	// Filter and "all" go in the bottom border next to "x of y": the top
 	// border is taken by the tabs on narrow panels.
 	var footer []string
-	if f := a.filters[a.tab]; f != "" {
+	if f := a.filters[a.listKey(viewModules)]; f != "" {
 		footer = append(footer, "filter: "+f)
 	}
 	counter := ""
@@ -146,7 +147,7 @@ func (a *App) writeModuleRows(v *gocui.View, width int) {
 		switch {
 		case a.loadedErr != nil && len(a.loaded) == 0:
 			fmt.Fprint(v, red("Cannot list modules: "+errText(a.loadedErr)))
-		case a.filters[tabModules] != "":
+		case a.filters["modules"] != "":
 			fmt.Fprint(v, dim("No modules match the filter"))
 		default:
 			fmt.Fprint(v, dim("No modules"))
@@ -217,7 +218,7 @@ func (a *App) writeDeviceRows(v *gocui.View, width int) {
 		switch {
 		case a.devicesErr != nil && len(a.devices) == 0:
 			fmt.Fprint(v, red("Cannot list devices: "+errText(a.devicesErr)))
-		case a.filters[tabDevices] != "":
+		case a.filters["devices"] != "":
 			fmt.Fprint(v, dim("No devices match the filter"))
 		default:
 			fmt.Fprint(v, dim("No devices"))
@@ -284,21 +285,46 @@ func (a *App) renderBoot() {
 	if v == nil {
 		return
 	}
+	v.TabIndex = a.bootTab
 	v.Clear()
+	l := a.bootPanelList()
+	err := a.bootErr
+	if a.bootTab == 1 {
+		err = a.allConfErr
+	}
 	switch {
-	case a.bootList.len() > 0:
+	case l.len() > 0:
+		width := v.InnerWidth()
 		var sb strings.Builder
-		for i := 0; i < a.bootList.len(); i++ {
-			e := a.bootList.at(i)
-			sb.WriteString(bootKindText(e.Kind) + " " + e.Module)
-			if e.Kind == kmod.BootOptions {
-				sb.WriteString(" " + dim(e.Args))
+		for i := 0; i < l.len(); i++ {
+			e := l.at(i)
+			row := bootKindText(e.Kind) + " " + e.Module
+			switch e.Kind {
+			case kmod.BootBlacklist, kmod.BootLoad:
+			case kmod.BootAlias:
+				row = bootKindText(e.Kind) + " " + e.Args + dim(" → ") + e.Module
+			default:
+				row += " " + dim(e.Args)
 			}
-			sb.WriteString("\n")
+			if a.bootTab == 1 {
+				// The file name on the right, shortened or left out before
+				// the entry itself is cut; Details always has the full path.
+				file := path.Base(e.File)
+				room := width - visibleLen(row) - 2
+				if room >= 8 {
+					file = truncate(file, room)
+					row = padRight(row, width-len([]rune(file))-1) + " " + dim(file)
+				}
+			}
+			sb.WriteString(row + "\n")
 		}
 		fmt.Fprint(v, sb.String())
-	case a.bootErr != nil:
-		fmt.Fprint(v, red("Cannot read boot config: "+errText(a.bootErr)))
+	case err != nil && (a.bootTab == 0 && len(a.boot) == 0 || a.bootTab == 1 && len(a.allConf) == 0):
+		fmt.Fprint(v, red("Cannot read the config: "+errText(err)))
+	case a.filters[a.listKey(viewBoot)] != "":
+		fmt.Fprint(v, dim("No entries match the filter"))
+	case a.bootTab == 1:
+		fmt.Fprint(v, dim("No modprobe.d or modules-load.d entries"))
 	default:
 		fmt.Fprint(v, dim("No entries managed by kmodtui"))
 	}
@@ -306,10 +332,20 @@ func (a *App) renderBoot() {
 }
 
 func (a *App) syncBootSelection() {
-	if v := a.view(viewBoot); v != nil {
-		v.Footer = a.bootList.footer()
-		syncSelection(v, a.bootList.len(), a.bootList.sel)
+	v := a.view(viewBoot)
+	if v == nil {
+		return
 	}
+	l := a.bootPanelList()
+	var footer []string
+	if f := a.filters[a.listKey(viewBoot)]; f != "" {
+		footer = append(footer, "filter: "+f)
+	}
+	if c := l.footer(); c != "" {
+		footer = append(footer, c)
+	}
+	v.Footer = strings.Join(footer, " · ")
+	syncSelection(v, l.len(), l.sel)
 }
 
 func bootKindText(k kmod.BootKind) string {
@@ -541,6 +577,9 @@ func (a *App) moduleDetails() string {
 	case kmod.Builtin:
 		d.field("State", cyan("built into the kernel"))
 	}
+	if e.State == kmod.Loaded {
+		a.whySection(d, name)
+	}
 
 	mi := a.moduleInfo(e.Name)
 	switch {
@@ -571,19 +610,6 @@ func (a *App) moduleDetails() string {
 		}
 		d.field("Used by", used)
 	}
-	var conf []string
-	if a.inBoot(kmod.BootBlacklist, name) {
-		conf = append(conf, red("blacklisted"))
-	}
-	if a.inBoot(kmod.BootLoad, name) {
-		conf = append(conf, green("loads at boot"))
-	}
-	if opts := kmod.Options(a.boot, name); len(opts) > 0 {
-		conf = append(conf, "options "+cyan(strings.Join(opts, " ")))
-	}
-	if len(conf) > 0 {
-		d.field("kmodtui.conf", strings.Join(conf, ", "))
-	}
 	devs := a.devByMod[name]
 	for i, dev := range devs {
 		text := dev.Bus + " " + shortAddr(dev) + "  " + deviceName(dev)
@@ -597,6 +623,8 @@ func (a *App) moduleDetails() string {
 	if mi != nil {
 		a.paramSection(d, e, mi)
 	}
+	a.configSection(d, name)
+	logCmd := a.logSection(d, "mod:"+name, a.moduleLogTerms(name))
 
 	cmds := []string{"modinfo " + e.Name}
 	if e.State != kmod.Available {
@@ -607,6 +635,9 @@ func (a *App) moduleDetails() string {
 	}
 	if e.State != kmod.Builtin {
 		cmds = append(cmds, "modprobe --show-depends "+e.Name)
+	}
+	if logCmd != "" {
+		cmds = append(cmds, logCmd)
 	}
 	d.commands(cmds...)
 	return d.String()
@@ -756,6 +787,9 @@ func (a *App) deviceDetails() string {
 		d.line("")
 		d.line(dim("Press enter to open " + c[0] + " in the Modules tab."))
 	}
+	if logCmd := a.logSection(d, "dev:"+dev.Bus+dev.Addr, deviceLogTerms(dev)); logCmd != "" {
+		cmds = append(cmds, logCmd)
+	}
 	d.commands(slices.Compact(cmds)...)
 	return d.String()
 }
@@ -880,7 +914,14 @@ func (a *App) statusDetails() string {
 
 func (a *App) bootDetails() string {
 	d := a.newDetails()
-	e, ok := a.bootList.selected()
+	e, ok := a.bootPanelList().selected()
+	if !ok && a.bootTab == 1 {
+		d.line(bold("All config files"))
+		d.line("")
+		d.line("modprobe reads " + strings.Join(kmod.ModprobeDirs, ", ") + "; systemd-modules-load reads " + strings.Join(kmod.ModulesLoadDirs, ", ") + ". A file in an earlier directory hides one with the same name in a later directory.")
+		d.commands("systemd-analyze cat-config modprobe.d", "systemd-analyze cat-config modules-load.d")
+		return d.String()
+	}
 	if !ok {
 		d.line(bold("Boot config"))
 		d.line("")
@@ -892,7 +933,7 @@ func (a *App) bootDetails() string {
 		if a.bootErr != nil {
 			d.line(red(errText(a.bootErr)))
 		} else {
-			d.line(dim("Neither has entries yet. Editing them is planned for phase 2."))
+			d.line(dim("Neither has entries yet. Use b, a or p on a module to add some; ] shows every config file."))
 		}
 		d.commands("cat "+kmod.ModprobeConf+" "+kmod.ModulesLoadConf, "modprobe --showconfig | less")
 		return d.String()
@@ -909,8 +950,23 @@ func (a *App) bootDetails() string {
 	case kmod.BootOptions:
 		d.field("Options", e.Args)
 		d.field("Effect", "modprobe passes these parameters whenever it loads "+e.Module+".")
+	case kmod.BootInstall:
+		d.field("Command", e.Args)
+		d.field("Effect", "`modprobe "+e.Module+"` runs this command instead of loading the module.")
+	case kmod.BootRemove:
+		d.field("Command", e.Args)
+		d.field("Effect", "`modprobe -r "+e.Module+"` runs this command instead of unloading the module.")
+	case kmod.BootSoftdep:
+		d.field("Softdep", e.Args)
+		d.field("Effect", "modprobe also loads the modules listed after pre: before "+e.Module+", and those after post: after it.")
+	case kmod.BootAlias:
+		d.field("Alias", e.Args)
+		d.field("Effect", "`modprobe "+e.Args+"` loads "+e.Module+".")
 	default:
 		d.field("Line", e.Args)
+	}
+	if !a.ownedByKmodtui(e) {
+		d.field("Edit", dim("not managed by kmodtui; edit by hand with sudoedit "+e.File))
 	}
 	state := dim("not loaded")
 	for _, m := range a.loaded {
@@ -919,11 +975,11 @@ func (a *App) bootDetails() string {
 		}
 	}
 	d.field("Now", state)
-	cmds := []string{"cat " + e.File}
-	if e.File == kmod.ModprobeConf {
-		cmds = append(cmds, "modprobe --showconfig | grep -w "+e.Module)
-	} else {
+	cmds := []string{fmt.Sprintf("sed -n '%dp' %s", e.Line, e.File)}
+	if e.Kind == kmod.BootLoad {
 		cmds = append(cmds, "systemctl status systemd-modules-load")
+	} else {
+		cmds = append(cmds, "modprobe --showconfig | grep -w "+e.Module)
 	}
 	d.commands(cmds...)
 	return d.String()

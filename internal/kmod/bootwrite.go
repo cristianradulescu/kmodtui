@@ -132,6 +132,11 @@ func ClearOptions(content, module string) (string, bool) {
 	return editLines(lines, match, "", false)
 }
 
+// Removable reports whether kmodtui-helper can remove entries of kind.
+func Removable(k BootKind) bool {
+	return k == BootBlacklist || k == BootOptions || k == BootLoad
+}
+
 // Options returns the parameters kmodtui's modprobe.d content sets for
 // module, as written there ("power_save=1").
 func Options(entries []BootEntry, module string) []string {

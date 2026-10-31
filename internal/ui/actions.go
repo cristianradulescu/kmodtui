@@ -259,12 +259,16 @@ const initramfsNote = "Early boot uses the copy of /etc/modprobe.d in the initra
 
 func (a *App) blacklistAction(name string, on bool) *action {
 	if !on {
-		return &action{
+		act := &action{
 			title: "Remove the blacklist entry for " + name,
 			args:  [][]string{{"unblacklist", name}},
 			does:  []string{"remove " + cyan("blacklist "+name) + " from " + kmod.ModprobeConf},
 			notes: []string{initramfsNote},
 		}
+		if other := a.blacklistedElsewhere(name); len(other) > 0 {
+			act.notes = append(act.notes, name+" stays blacklisted by "+strings.Join(other, ", ")+"; kmodtui does not edit that file.")
+		}
+		return act
 	}
 	act := &action{
 		title:    "Blacklist " + name,
@@ -278,6 +282,9 @@ func (a *App) blacklistAction(name string, on bool) *action {
 	}
 	if a.isLoaded(name) {
 		act.notes = append(act.notes, name+" stays loaded until you unload it or reboot.")
+	}
+	if other := a.blacklistedElsewhere(name); len(other) > 0 {
+		act.notes = append(act.notes, "Already blacklisted in "+strings.Join(other, ", ")+"; this adds kmodtui's own entry.")
 	}
 	return act
 }
@@ -392,12 +399,30 @@ func (a *App) toggleBootLoad() error {
 	return nil
 }
 
+// bootPanelList is the list the Boot config panel shows: kmodtui's own
+// entries, or every config file.
+func (a *App) bootPanelList() *list[kmod.BootEntry] {
+	if a.bootTab == 1 {
+		return a.allList
+	}
+	return a.bootList
+}
+
+// ownedByKmodtui reports whether e is in one of kmodtui's two files and of
+// a kind kmodtui-helper can remove.
+func (a *App) ownedByKmodtui(e kmod.BootEntry) bool {
+	return (e.File == kmod.ModprobeConf || e.File == kmod.ModulesLoadConf) && kmod.Removable(e.Kind)
+}
+
 func (a *App) removeSelectedBootEntry() error {
-	e, ok := a.bootList.selected()
+	e, ok := a.bootPanelList().selected()
 	if !ok {
 		return nil
 	}
-	if e.Kind != kmod.BootOther && !a.idx.Has(e.Module) {
+	if !kmod.Removable(e.Kind) {
+		return a.showMessage(fmt.Sprintf("kmodtui only removes blacklist, options and load entries. Edit %s line %d by hand.", e.File, e.Line))
+	}
+	if !a.idx.Has(e.Module) {
 		// kmodtui-helper only touches modules listed in modules.dep.
 		return a.showMessage(fmt.Sprintf("%s is not a module of this kernel (not in modules.dep), so kmodtui-helper will not touch it.\nRemove line %d of %s by hand, for example:\n\n  sudo sed -i '%dd' %s",
 			e.Module, e.Line, e.File, e.Line, e.File))

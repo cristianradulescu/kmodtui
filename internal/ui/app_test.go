@@ -26,6 +26,18 @@ const (
 type fixtureRunner struct{}
 
 func (fixtureRunner) Run(name string, args ...string) ([]byte, error) {
+	if name == "journalctl" {
+		// Real lines from the machine the fixtures come from.
+		pattern := args[len(args)-1]
+		switch {
+		case strings.Contains(pattern, "nvme"):
+			return []byte("2026-10-31T07:48:02+02:00 crimson-labs-01 kernel: nvme nvme0: 16/0/0 default/read/poll queues\n" +
+				"2026-10-24T18:24:08+03:00 crimson-labs-01 kernel: nvme 0000:bf:00.0: platform quirk: setting simple suspend\n"), nil
+		case strings.Contains(pattern, `0000:c2:00\.0`):
+			return []byte("2026-10-24T18:24:10+03:00 crimson-labs-01 kernel: amdgpu 0000:c2:00.0: enabling device (0006 -> 0007)\n"), nil
+		}
+		return []byte("-- No entries --\n"), errors.New("journalctl: exit status 1")
+	}
 	if name == "modprobe" && slices.Contains(args, "-n") {
 		mod := args[len(args)-1]
 		if slices.Contains(args, "-r") {
@@ -169,7 +181,7 @@ func TestStartupScreen(t *testing.T) {
 			a := newTestApp(t, fixtureRoot, size[0], size[1])
 			screen := a.screen()
 			assertContains(t, "screen", screen,
-				"[1]─Status", "[2]─Modules - Devices", "[3]─Boot config", "[4]─Changes", "[0]─Details", "Command log",
+				"[1]─Status", "[2]─Modules - Devices", "[3]─Boot config - All files", "[4]─Changes", "[0]─Details", "Command log",
 				"7.0.0-38-generic", "disabled (setup mode)", "OE (12288)",
 				"amdgpu", "1 of 28",
 				"╭", "╯",

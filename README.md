@@ -74,18 +74,36 @@ The bottom bar shows the keys that apply to the focused panel.
   bound to each. `amdxdna?` means no driver is bound and `modules.alias`
   suggests that module; `—` means unbound with no candidate. `Enter` jumps to
   the module (switching to "all" if it is not loaded).
-- **[3] Boot config**: entries in the two files kmodtui manages,
-  `/etc/modprobe.d/kmodtui.conf` and `/etc/modules-load.d/kmodtui.conf`.
-  `d` removes the selected entry.
+- **[3] Boot config** has two tabs. *Boot config*: the entries in the two
+  files kmodtui manages, `/etc/modprobe.d/kmodtui.conf` and
+  `/etc/modules-load.d/kmodtui.conf`; `d` removes the selected entry. *All
+  files*: every `blacklist`, `options`, `install`, `remove`, `softdep`,
+  `alias` and load-at-boot entry from all modprobe.d and modules-load.d
+  directories (with the usual rule that a file in `/etc` hides a file of
+  the same name in `/run`, `/usr/local/lib` or `/usr/lib`), each with its
+  file. Entries in other files are shown read-only; kmodtui never edits
+  them. The panel grows while you work in it, and `/` filters it.
 - **[4] Changes**: follow-ups after a change, with `Enter` to fix them:
   "initramfs update needed" when `/etc/modprobe.d` changed after the
   initramfs was built, a blacklisted module that is still loaded, a module
   set to load at boot that is not loaded.
 - **[0] Details**: everything about the selection in the last focused left
-  panel. For a module: `modinfo` fields, signature, dependencies, the
-  devices it drives, and parameters with their current values (root-only
-  values are marked `(root only)`). For a device: IDs, class, driver,
-  module, modalias, USB interfaces.
+  panel. For a module:
+  - **Why loaded**: the device it drives, a load-at-boot entry, another
+    module's softdep, a mounted filesystem, or the loaded modules that need
+    it and what those are ultimately for (`cfg80211` is needed by the mt76
+    Wi-Fi stack, for `mt7925e`, which drives the Wi-Fi card). If nothing
+    explains it, it says so.
+  - `modinfo` fields, signature, dependencies, the devices it drives, and
+    parameters with their current values (root-only values are marked
+    `(root only)`).
+  - **Config**: every config entry about the module, from any file, with
+    file and line.
+  - **Kernel log**: its last 20 kernel messages from this boot, such as
+    firmware loading or probe errors.
+
+  For a device: IDs, class, driver, module, modalias, USB interfaces, and
+  its kernel log.
 - **Command log**: every read kmodtui performed, as the command you would
   run yourself.
 
@@ -102,11 +120,11 @@ when active, the filter and the "all" mode.
 | `j` `k` / `↓` `↑` | lists, Details, log | Move / scroll |
 | `g` `G` / `Home` `End` | lists, Details, log | Top / bottom |
 | `PgUp` `PgDn` | lists, Details, log | Page up / down |
-| `[` `]` | Modules | Previous / next tab (Modules, Devices) |
-| `/` | Modules | Filter the current tab as you type |
+| `[` `]` | Modules, Boot config | Previous / next tab |
+| `/` | Modules, Boot config | Filter the current tab as you type |
 | `Enter` / `Esc` | filter prompt | Keep the filter / clear it |
 | `↓` `↑` | filter prompt | Move the selection while typing |
-| `Esc` | Modules | Clear an active filter |
+| `Esc` | Modules, Boot config | Clear an active filter |
 | `A` | Modules tab | Toggle loaded / all modules |
 | `u` | Modules tab | Unload the selected module |
 | `l` | Modules tab | Load the selected module (in "all" mode) |
@@ -145,6 +163,8 @@ as modprobe does. The device filter matches address, names, IDs
 | USB devices and drivers | `lsusb -t`, `lsusb -d <vendor>:<product>` |
 | Candidate modules for an unbound device | `modprobe --resolve-alias <modalias>` |
 | kmodtui boot config | `cat /etc/modprobe.d/kmodtui.conf /etc/modules-load.d/kmodtui.conf` |
+| All config files, overrides applied | `systemd-analyze cat-config modprobe.d`, `systemd-analyze cat-config modules-load.d` |
+| Kernel messages about a module or device | `journalctl -k -b -r -n 20 --grep '\b(?:<module>)\b'` |
 | Effective blacklist / options | `modprobe --showconfig \| grep -w <module>` |
 | What a load or unload would do | `modprobe -n -v <module>`, `modprobe -n -v -r <module>` |
 | Load / unload | `sudo modprobe <module>`, `sudo modprobe -r <module>` |
@@ -200,6 +220,9 @@ All read without root:
   EFI variable
 - Device names: `/usr/share/misc/{pci,usb}.ids` when present (USB devices
   prefer the names they report in sysfs)
+- Config: `{/etc,/run,/usr/local/lib,/usr/lib,/lib}/{modprobe.d,modules-load.d}/*.conf`
+- Kernel log: `journalctl -k`, which needs your user in the `adm` or
+  `systemd-journal` group (Ubuntu's first user is in `adm`)
 
 Notes:
 

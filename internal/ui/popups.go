@@ -124,7 +124,7 @@ func (a *App) fillPopup(v *gocui.View) {
 		v.Frame = false
 		v.Editable = true
 		v.Editor = gocui.EditorFunc(a.filterEditor)
-		v.TextArea.TypeString(a.filters[a.tab])
+		v.TextArea.TypeString(a.filters[a.listKey(a.beforePopup)])
 		v.RenderTextArea()
 	case viewHelp:
 		fmt.Fprint(v, a.helpText())
@@ -152,31 +152,42 @@ func (a *App) openFilter() error { return a.openPopup(viewFilter) }
 func (a *App) filterEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) bool {
 	handled := gocui.SimpleEditor(v, key, ch, mod)
 	if handled {
-		a.applyFilter(strings.TrimSpace(v.TextArea.GetContent()))
+		a.applyFilter(a.beforePopup, strings.TrimSpace(v.TextArea.GetContent()))
 	}
 	return handled
 }
 
-func (a *App) applyFilter(f string) {
-	a.filters[a.tab] = f
-	if a.tab == tabModules {
+// applyFilter filters the list the given panel shows right now.
+func (a *App) applyFilter(view, f string) {
+	key := a.listKey(view)
+	a.filters[key] = f
+	switch key {
+	case "modules":
 		a.mods.setFilter(f)
-	} else {
+	case "devices":
 		a.devs.setFilter(f)
+	case "boot":
+		a.bootList.setFilter(f)
+	case "allconf":
+		a.allList.setFilter(f)
 	}
-	a.renderModules()
+	if view == viewBoot {
+		a.renderBoot()
+	} else {
+		a.renderModules()
+	}
 	a.renderDetails()
 }
 
 func (a *App) closeFilter() error { return a.closePopup() }
 
 func (a *App) cancelFilter() error {
-	a.applyFilter("")
+	a.applyFilter(a.beforePopup, "")
 	return a.closePopup()
 }
 
 func (a *App) clearFilter() error {
-	a.applyFilter("")
+	a.applyFilter(a.currentView(), "")
 	a.renderBar()
 	return nil
 }
