@@ -326,9 +326,27 @@ func bootKindText(k kmod.BootKind) string {
 }
 
 func (a *App) renderChanges() {
-	if v := a.view(viewChanges); v != nil {
-		v.Clear()
+	v := a.view(viewChanges)
+	if v == nil {
+		return
+	}
+	v.Clear()
+	if a.changes.len() == 0 {
 		fmt.Fprint(v, dim("No pending changes"))
+	} else {
+		var sb strings.Builder
+		for i := 0; i < a.changes.len(); i++ {
+			sb.WriteString(a.changes.at(i).text + "\n")
+		}
+		fmt.Fprint(v, sb.String())
+	}
+	a.syncChangesSelection()
+}
+
+func (a *App) syncChangesSelection() {
+	if v := a.view(viewChanges); v != nil {
+		v.Footer = a.changes.footer()
+		syncSelection(v, a.changes.len(), a.changes.sel)
 	}
 }
 
@@ -340,12 +358,15 @@ func (a *App) renderBar() {
 		return
 	}
 	v.Clear()
-	if a.popup == viewFilter {
+	switch {
+	case a.topPopup() == viewFilter:
 		// The editable filter view starts right after this label.
 		fmt.Fprint(v, green("Filter:"))
-		return
+	case a.topPopup() == viewValue && a.valueErr != "":
+		fmt.Fprint(v, red(a.valueErr)+dim(" | ")+a.hints())
+	default:
+		fmt.Fprint(v, a.hints())
 	}
-	fmt.Fprint(v, a.hints())
 }
 
 // Command log.
@@ -549,6 +570,19 @@ func (a *App) moduleDetails() string {
 			used += dim(fmt.Sprintf(" (use count %d)", e.Module.RefCount))
 		}
 		d.field("Used by", used)
+	}
+	var conf []string
+	if a.inBoot(kmod.BootBlacklist, name) {
+		conf = append(conf, red("blacklisted"))
+	}
+	if a.inBoot(kmod.BootLoad, name) {
+		conf = append(conf, green("loads at boot"))
+	}
+	if opts := kmod.Options(a.boot, name); len(opts) > 0 {
+		conf = append(conf, "options "+cyan(strings.Join(opts, " ")))
+	}
+	if len(conf) > 0 {
+		d.field("kmodtui.conf", strings.Join(conf, ", "))
 	}
 	devs := a.devByMod[name]
 	for i, dev := range devs {
@@ -897,14 +931,25 @@ func (a *App) bootDetails() string {
 
 func (a *App) changesDetails() string {
 	d := a.newDetails()
-	d.line(bold("Changes"))
+	c, ok := a.changes.selected()
+	if !ok {
+		d.line(bold("Changes"))
+		d.line("")
+		d.line("No pending changes.")
+		d.line("")
+		d.line(dim("Follow-up work after an edit shows up here, for example \"initramfs update needed\" after a blacklist, or a blacklisted module that is still loaded."))
+		d.commands("stat -c '%y %n' /etc/modprobe.d " + kmod.ModprobeConf + " /boot/initrd.img")
+		return d.String()
+	}
+	d.line(bold(stripSGR(c.text)))
 	d.line("")
-	d.line("No pending changes.")
-	d.line("")
-	d.line(dim("This panel lists follow-up work after an edit, for example"))
-	d.line(dim("\"initramfs update needed\" after blacklisting a module that is"))
-	d.line(dim("part of the initramfs (fixed with `sudo update-initramfs -u`)."))
-	d.line(dim("Edits arrive in phase 2."))
-	d.commands("lsinitramfs /boot/initrd.img-$(uname -r) | grep -F .ko")
+	for _, l := range c.detail {
+		d.line(l)
+	}
+	if c.fix != nil {
+		d.line("")
+		d.line(dim("Press enter in the Changes panel to fix it (you confirm first)."))
+		d.commands(c.fixCmd)
+	}
 	return d.String()
 }

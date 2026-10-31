@@ -24,6 +24,10 @@ const (
 	viewOptions = "options"
 	viewFilter  = "filter"
 	viewHelp    = "help"
+	viewConfirm = "confirm"
+	viewParams  = "params"
+	viewValue   = "value"
+	viewMessage = "message"
 )
 
 // panelOrder is the Tab cycle.
@@ -65,8 +69,14 @@ type App struct {
 	devByMod   map[string][]kmod.Device
 	boot       []kmod.BootEntry
 	bootErr    error
+	aliases    *kmod.AliasIndex
+	mounts     map[string][]string
+	initramfs  bool // /etc/modprobe.d changed after the initramfs was built
 	info       map[string]*moduleInfo
 	pending    map[string]bool
+
+	// exec runs kmodtui-helper through pkexec; tests use a fake.
+	exec executor
 
 	// UI state.
 	showAll      bool
@@ -74,10 +84,16 @@ type App struct {
 	mods         *list[kmod.Entry]
 	devs         *list[kmod.Device]
 	bootList     *list[kmod.BootEntry]
+	changes      *list[change]
 	filters      [2]string // per tab
 	context      string    // left panel whose selection Details shows
-	popup        string    // "", viewFilter or viewHelp
-	beforePopup  string    // view to refocus when the help popup closes
+	popups       []string  // open popups, topmost last
+	beforePopup  string    // view to refocus when the last popup closes
+	act          *action   // the action the confirm popup offers
+	params       *list[paramRow]
+	paramModule  string
+	valueErr     string // why the last value typed in the value prompt was refused
+	message      string // text of the message popup
 	logLines     []string
 	bindings     []*binding
 	ready        bool // views exist and have been rendered once
@@ -102,6 +118,8 @@ func New(src *kmod.Source) *App {
 		func(e kmod.BootEntry) string { return fmt.Sprintf("%s:%d", e.File, e.Line) },
 		func(e kmod.BootEntry, q string) bool { return strings.Contains(e.Module, q) },
 	)
+	a.changes = newList(func(c change) string { return c.key }, func(change, string) bool { return true })
+	a.params = newList(func(r paramRow) string { return r.name }, func(paramRow, string) bool { return true })
 	return a
 }
 
@@ -130,6 +148,7 @@ func (a *App) Run() error {
 			g.Update(func(*gocui.Gui) error { apply(); return nil })
 		}()
 	}
+	a.exec = pkexecExecutor{g: g}
 	if err := a.init(g); err != nil {
 		return err
 	}
@@ -145,6 +164,16 @@ func (a *App) init(g *gocui.Gui) error {
 	g.SelFrameColor = gocui.ColorGreen
 	g.SelFgColor = gocui.ColorGreen | gocui.AttrBold
 	g.ShowListFooter = true
+	// A view binding that does not apply right now returns
+	// ErrKeybindingNotHandled so a global binding can take the key. When none
+	// does, gocui hands that error to MainLoop, which would exit; a key that
+	// does nothing is not an error.
+	g.ErrorHandler = func(err error) error {
+		if errors.Is(err, gocui.ErrKeybindingNotHandled) {
+			return nil
+		}
+		return err
+	}
 	g.SetManagerFunc(a.layout)
 	a.reload()
 	return a.registerBindings()
@@ -165,9 +194,9 @@ func (a *App) reload() {
 	a.idxErr = firstErr(ops)
 	a.logOps(ops...)
 
-	aliases, op := a.src.LoadAliasIndex(a.status.Release)
+	a.aliases, op = a.src.LoadAliasIndex(a.status.Release)
 	a.logOps(op)
-	a.devices, ops = a.src.Devices(aliases)
+	a.devices, ops = a.src.Devices(a.aliases)
 	a.devicesErr = firstErr(ops)
 	a.devByMod = kmod.DevicesByModule(a.devices)
 	a.logOps(ops...)
@@ -176,10 +205,16 @@ func (a *App) reload() {
 	a.bootErr = op.Err
 	a.logOps(op)
 
+	a.mounts, op = a.src.Mounts()
+	a.logOps(op)
+	a.initramfs, op = a.src.InitramfsPending(a.status.Release)
+	a.logOps(op)
+
 	a.info = map[string]*moduleInfo{}
 	a.mods.set(kmod.Entries(a.loaded, a.idx, a.showAll))
 	a.devs.set(a.devices)
 	a.bootList.set(a.boot)
+	a.changes.set(a.computeChanges())
 }
 
 func firstErr(ops []kmod.Op) error {
@@ -241,36 +276,8 @@ func (a *App) layout(g *gocui.Gui) error {
 		}
 	}
 
-	if a.popup == viewFilter {
-		v, created, err := setView(g, viewFilter, len("Filter: ")-1, maxY-2, maxX, maxY)
-		if err != nil {
-			return err
-		}
-		if created {
-			v.Frame = false
-			v.Editable = true
-			v.Editor = gocui.EditorFunc(a.filterEditor)
-			v.TextArea.TypeString(a.filters[a.tab])
-			v.RenderTextArea()
-		}
-		if _, err := g.SetViewOnTop(viewFilter); err != nil {
-			return err
-		}
-	}
-	if a.popup == viewHelp {
-		w, hh := min(maxX-4, 72), min(maxY-4, strings.Count(a.helpText(), "\n")+3)
-		x0, y0 := (maxX-w)/2, (maxY-hh)/2
-		v, created, err := setView(g, viewHelp, x0, y0, x0+w, y0+hh)
-		if err != nil {
-			return err
-		}
-		if created {
-			a.configure(v)
-			fmt.Fprint(v, a.helpText())
-		}
-		if _, err := g.SetViewOnTop(viewHelp); err != nil {
-			return err
-		}
+	if err := a.layoutPopups(g, maxX, maxY); err != nil {
+		return err
 	}
 
 	if !a.ready {
@@ -314,6 +321,8 @@ func (a *App) configure(v *gocui.View) {
 		v.InactiveViewSelBgColor = gocui.ColorDefault
 	case viewChanges:
 		v.TitlePrefix, v.Title = "[4]", "Changes"
+		v.SelBgColor = gocui.ColorBlue
+		v.InactiveViewSelBgColor = gocui.ColorDefault
 	case viewDetails:
 		v.TitlePrefix, v.Title = "[0]", "Details"
 		v.Wrap = true
@@ -326,6 +335,14 @@ func (a *App) configure(v *gocui.View) {
 	case viewHelp:
 		v.Title = "Keybindings"
 		v.Subtitle = "esc to close"
+	case viewConfirm, viewMessage:
+		v.Wrap = true
+	case viewParams:
+		v.SelBgColor = gocui.ColorBlue
+		v.Highlight = true
+	case viewValue:
+		v.Editable = true
+		v.Editor = gocui.EditorFunc(gocui.SimpleEditor)
 	}
 }
 
@@ -359,7 +376,7 @@ func (a *App) focus(name string) error {
 			v.FocusPoint(0, max(v.ViewLinesHeight()-1, 0), true)
 		}
 	}
-	for _, n := range []string{viewModules, viewBoot} {
+	for _, n := range []string{viewModules, viewBoot, viewChanges} {
 		if v, err := a.g.View(n); err == nil {
 			v.HighlightInactive = n != name
 		}
@@ -381,7 +398,7 @@ func (a *App) cycleFocus(delta int) error {
 // move moves the selection in list panels and scrolls the other views.
 func (a *App) move(delta int) error {
 	switch cur := a.currentView(); cur {
-	case viewModules, viewBoot:
+	case viewModules, viewBoot, viewChanges, viewParams:
 		return a.moveList(delta)
 	default:
 		v, err := a.g.View(cur)
@@ -397,13 +414,21 @@ func (a *App) move(delta int) error {
 	return nil
 }
 
-// moveList moves the selection of the Modules/Devices list (also while the
-// filter prompt is focused) or of the Boot config list.
+// moveList moves the selection of the focused list: Modules/Devices (also
+// while the filter prompt is focused), Boot config, Changes or Parameters.
 func (a *App) moveList(delta int) error {
-	if a.currentView() == viewBoot {
+	switch a.currentView() {
+	case viewBoot:
 		a.bootList.move(delta)
 		a.syncBootSelection()
-	} else {
+	case viewChanges:
+		a.changes.move(delta)
+		a.syncChangesSelection()
+	case viewParams:
+		a.params.move(delta)
+		a.renderParams() // the description below the table follows the selection
+		return nil
+	default:
 		if a.tab == tabModules {
 			a.mods.move(delta)
 		} else {
@@ -479,81 +504,4 @@ func (a *App) gotoDeviceModule() error {
 	a.renderDetails()
 	a.renderBar()
 	return nil
-}
-
-// Filter prompt.
-
-func (a *App) openFilter() error {
-	a.popup = viewFilter
-	a.g.Cursor = true
-	if err := a.g.ForceLayoutAndRedraw(); err != nil {
-		return err
-	}
-	if _, err := a.g.SetCurrentView(viewFilter); err != nil {
-		return err
-	}
-	a.renderBar()
-	return nil
-}
-
-func (a *App) filterEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) bool {
-	handled := gocui.SimpleEditor(v, key, ch, mod)
-	if handled {
-		a.applyFilter(strings.TrimSpace(v.TextArea.GetContent()))
-	}
-	return handled
-}
-
-func (a *App) applyFilter(f string) {
-	a.filters[a.tab] = f
-	if a.tab == tabModules {
-		a.mods.setFilter(f)
-	} else {
-		a.devs.setFilter(f)
-	}
-	a.renderModules()
-	a.renderDetails()
-}
-
-func (a *App) closeFilter() error {
-	a.popup = ""
-	a.g.Cursor = false
-	if err := a.g.DeleteView(viewFilter); err != nil {
-		return err
-	}
-	return a.focus(viewModules)
-}
-
-func (a *App) cancelFilter() error {
-	a.applyFilter("")
-	return a.closeFilter()
-}
-
-func (a *App) clearFilter() error {
-	a.applyFilter("")
-	a.renderBar()
-	return nil
-}
-
-// Help popup.
-
-func (a *App) openHelp() error {
-	a.beforePopup = a.currentView()
-	a.popup = viewHelp
-	if err := a.g.ForceLayoutAndRedraw(); err != nil {
-		return err
-	}
-	if _, err := a.g.SetCurrentView(viewHelp); err != nil {
-		return err
-	}
-	a.renderBar()
-	return nil
-}
-
-func (a *App) closeHelp() error {
-	a.popup = ""
-	if err := a.g.DeleteView(viewHelp); err != nil {
-		return err
-	}
-	return a.focus(a.beforePopup)
 }

@@ -5,43 +5,65 @@ Guidance for working on kmodtui: a lazygit-style TUI for Linux kernel modules
 
 ## Status
 
-- **Phase 1 (current): read-only.** No writes, no sudo, no pkexec anywhere.
-- Phase 2 (not started; needs explicit go-ahead): writes through a separate
-  `kmodtui-helper` binary run via `pkexec`. See "Phase 2 rules" below.
+- Phase 1 (done): read-only browsing.
+- Phase 2 (current): writes through `kmodtui-helper`, run via `pkexec`. See
+  "Write rules" below; they are not negotiable.
 
 ## Commands
 
 ```sh
 make check   # gofmt check + go vet + go test ./...
-make build   # static binary in bin/kmodtui (CGO_ENABLED=0)
+make build   # bin/kmodtui, bin/kmodtui-helper, bin/<policy> (CGO_ENABLED=0)
 make run     # go run ./cmd/kmodtui
 go test ./internal/kmod -run TestParseModinfo -v
 ```
 
-Run `make check` after every change. Never run anything with sudo/pkexec, and
-never modify files outside this repo.
+Run `make check` after every change. Never run anything with sudo/pkexec
+(including `make install`), and never modify files outside this repo. The
+end-to-end check of writes is the user's: they run `sudo make install`.
 
 ## Layout
 
 - `cmd/kmodtui` - flags and wiring only.
-- `internal/kmod` - data sources and parsers. Must not import gocui or
+- `cmd/kmodtui-helper` - root side, wiring only. **No flags**: a `-root`
+  style flag on a pkexec-run binary would let it write anywhere.
+- `internal/helper` - the helper's subcommands, validation and atomic file
+  writes; `Env{Root, Exec, Out}` makes it testable against a temp root.
+- `internal/kmod` - data sources, parsers, validators (`validate.go`) and the
+  pure config editors (`bootwrite.go`, `Edit*`). Must not import gocui or
   anything UI-related.
+- `packaging/` - polkit policy template; `@HELPER@` is filled in by `make
+  build` and must match `ui.HelperPath` (also set by the Makefile).
 - `internal/ui` - gocui views, keybindings, list state, rendering.
   - `app.go`: state, layout, focus, handlers. `render.go`: panel and
     Details text. `keys.go`: the binding table (registration, bottom bar and
     `?` popup all come from it; add keys there only). `list.go`: filterable
     list state with no gocui dependency.
+  - `popups.go`: a stack of popups (filter, help, confirm, params, value,
+    message). Open/close only through `openPopup`/`closePopup`; closing the
+    last one refocuses the view that was focused before the first.
+  - `actions.go`: one builder per write returning an `action` (helper argv,
+    effects as plain commands, dry run, warnings, notes). Every write goes
+    through `confirm(action)`; with warnings only `y` runs it. The
+    `executor` interface runs pkexec (suspending the TUI); tests use
+    `fakeExecutor`.
   - Slow per-module reads (modinfo, params) run through `App.background` and
     set `detailsDirty`; `layout` re-renders. Tests make `background`
     synchronous.
+  - A binding whose `when` is false returns `ErrKeybindingNotHandled` so a
+    global binding can take the key; `Gui.ErrorHandler` swallows it when
+    none does (otherwise MainLoop exits). Keep that handler.
   - gocui wraps lines without indentation, so text that may be long goes
     through `details.hang` / `indentWrap` (ANSI-aware) instead.
 
 ## UI tests
 
 - `newTestApp` renders headlessly (`NewGuiOpts{Headless: true}`); `press`
-  dispatches keys through the binding table like gocui does; assertions use
-  `flat()` so they survive wrapping. Check log content via `logText()`.
+  dispatches keys through the binding table like gocui does, including
+  passing leftover errors through `Gui.ErrorHandler` (a non-nil result means
+  the real app would exit). Assertions use `flat()` so they survive
+  wrapping. Check log content via `logText()`, helper calls via
+  `assertCalls`.
 - gocui keeps the screen in a package global: one Gui per test, never
   `t.Parallel()`.
 - For a visual check, print `a.screen()` from a throwaway test, or run
@@ -94,17 +116,26 @@ never modify files outside this repo.
   - `NewGuiOpts{Headless: true}` + `g.Snapshot()` render without a terminal;
     use it for UI smoke tests.
 
-## Phase 2 rules (for later, do not implement yet)
+## Write rules
 
 - The TUI never runs as root. Writes go through `kmodtui-helper` via `pkexec`
-  with a polkit policy.
+  with the polkit policy (`auth_admin_keep` for active sessions).
 - Fixed subcommands only: load, unload, set-param, blacklist, unblacklist,
   boot-load, boot-unload, update-initramfs. No arbitrary commands or paths.
-- Validate module names: `^[A-Za-z0-9_-]+$` and present in modules.dep.
-- Load/unload with `modprobe` / `modprobe -r`, never insmod/rmmod.
+- Validate module names (`kmod.ValidModuleName`: `^[A-Za-z0-9_][A-Za-z0-9_-]*$`,
+  so never a leading `-` that modprobe would read as an option) and require
+  them in the running kernel's modules.dep. Parameter names and values have
+  their own validators; values never contain spaces, quotes, `=` or newlines.
+- Run only `/usr/sbin/modprobe` and `/usr/sbin/update-initramfs`, by
+  absolute path, without a shell. Load/unload with `modprobe` /
+  `modprobe -r`, never insmod/rmmod.
 - Write only `/etc/modprobe.d/kmodtui.conf` and
-  `/etc/modules-load.d/kmodtui.conf`. Never edit other config files.
-- Confirmation dialog before every write, showing the exact command(s). Extra
-  warning when unloading a module in use, or one driving storage, network or
-  display.
-- Flag when a blacklist needs `update-initramfs -u` and offer to run it.
+  `/etc/modules-load.d/kmodtui.conf`, atomically (temp file + rename, 0644),
+  through the `kmod.Edit*` functions, which keep lines they do not own.
+  Never edit other config files.
+- Confirmation dialog before every write, showing the exact command(s) and a
+  dry run where one exists. Warnings (`kmod.Impact`) for modules in use,
+  driving storage/network/display/wireless/input devices (also through
+  dependent modules), or providing a mounted filesystem.
+- After modprobe.d changes, the Changes panel shows "initramfs update
+  needed" (`kmod.InitramfsPending`) and offers `update-initramfs -u`.

@@ -7,24 +7,26 @@ import (
 )
 
 func TestParams(t *testing.T) {
+	// Checked-out fixture files are always owner-writable (git keeps no
+	// read-only bit); TestParamsWritable covers read-only parameters.
 	src, _ := fixtureSource(t)
 	tests := []struct {
 		module string
 		want   []Param
 	}{
 		{"nvme", []Param{
-			{Name: "io_queue_depth", Value: "1024"},
-			{Name: "max_host_mem_size_mb", Value: "128"},
-			{Name: "noacpi", Value: "N"},
-			{Name: "poll_queues", Value: "0"},
-			{Name: "quirks", Value: ""},
-			{Name: "sgl_threshold", Value: "32768"},
-			{Name: "use_cmb_sqes", Value: "Y"},
-			{Name: "use_threaded_interrupts", Value: "0"},
-			{Name: "write_queues", Value: "0"},
+			{Name: "io_queue_depth", Value: "1024", Writable: true},
+			{Name: "max_host_mem_size_mb", Value: "128", Writable: true},
+			{Name: "noacpi", Value: "N", Writable: true},
+			{Name: "poll_queues", Value: "0", Writable: true},
+			{Name: "quirks", Value: "", Writable: true},
+			{Name: "sgl_threshold", Value: "32768", Writable: true},
+			{Name: "use_cmb_sqes", Value: "Y", Writable: true},
+			{Name: "use_threaded_interrupts", Value: "0", Writable: true},
+			{Name: "write_queues", Value: "0", Writable: true},
 		}},
 		// Built-in modules expose parameters too.
-		{"usbcore", []Param{{Name: "autosuspend", Value: "2"}, {Name: "old_scheme_first", Value: "N"}}},
+		{"usbcore", []Param{{Name: "autosuspend", Value: "2", Writable: true}, {Name: "old_scheme_first", Value: "N", Writable: true}}},
 		// Dashes are normalized: /sys/module always uses underscores.
 		{"nvme-core", nil},
 		// Loaded module without parameters, and a module that is not loaded.
@@ -74,7 +76,7 @@ func TestParamsUnreadable(t *testing.T) {
 	assertEqual(t, "params", got, []Param{
 		{Name: "aspm", Value: "-1"},
 		{Name: "gartsize", Unreadable: "root only"},
-		{Name: "new_array", Unreadable: "write-only"},
+		{Name: "new_array", Unreadable: "write-only", Writable: true},
 	})
 	assertEqual(t, "cmd", op.Cmd, "grep -H . /sys/module/amdgpu/parameters/*")
 }

@@ -15,3 +15,13 @@ func Clean(s string) string {
 		return r
 	}, s)
 }
+
+// CleanLines cleans multi-line text (command output) line by line, keeping
+// the line breaks.
+func CleanLines(s string) string {
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		lines[i] = Clean(strings.TrimSuffix(l, "\r"))
+	}
+	return strings.Join(lines, "\n")
+}

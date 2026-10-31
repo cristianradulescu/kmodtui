@@ -7,6 +7,7 @@ Captured verbatim (then trimmed) from Ubuntu 26.04.1, kernel
 `7.0.0-38-generic`, on an AMD laptop:
 
 - `root/proc/modules`: real lines for the modules the fixture devices use.
+- `root/proc/mounts`: real lines (root, /boot, EFI, a FUSE and a snap mount).
 - `root/sys/...`: real attribute files; symlinks keep their original
   relative targets (they dangle here; the code only reads the link name).
 - `root/lib/modules/7.0.0-38-generic/modules.{dep,alias,builtin}`: real

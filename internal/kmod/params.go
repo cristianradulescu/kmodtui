@@ -15,6 +15,8 @@ type Param struct {
 	// Unreadable says why Value is empty ("root only", "write-only" or an
 	// error message); empty when the value was read.
 	Unreadable string
+	// Writable means root can change it at runtime through sysfs.
+	Writable bool
 }
 
 // Params reads the current parameter values of a loaded or built-in module.
@@ -35,6 +37,9 @@ func (s *Source) Params(module string) ([]Param, Op) {
 	params := make([]Param, 0, len(entries))
 	for _, e := range entries {
 		p := Param{Name: Clean(e.Name())}
+		if fi, err := e.Info(); err == nil {
+			p.Writable = fi.Mode().Perm()&0o200 != 0
+		}
 		file := path.Join(dir, e.Name())
 		b, err := s.readFile(file)
 		switch {

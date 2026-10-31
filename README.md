@@ -3,28 +3,33 @@
 A lazygit-style terminal UI for Linux kernel modules, for the tasks you do
 rarely and never remember the commands for: see what's loaded, inspect a
 module and its parameters, map devices to the modules driving them, check
-Secure Boot and taint state.
+Secure Boot and taint state, load and unload modules, blacklist them, load
+them at boot and set their parameters.
 
-kmodtui is a front-end, not a replacement. Every read is logged with the
-**exact equivalent CLI command**, and the Details view lists the commands for
-whatever is selected, so you can always fall back to the command line.
-
-> **Status: phase 1 (read-only).** kmodtui does not change anything on your
-> system and never needs root. Writes (load/unload, blacklist, load at boot,
-> parameters) are planned for phase 2 through a separate, polkit-guarded
-> helper.
+kmodtui is a front-end, not a replacement. Every read and action is logged
+with the **exact equivalent CLI command**, the Details view lists the
+commands for whatever is selected, and every change shows exactly what will
+run before it does, so you can always fall back to the command line.
 
 ## Install / build
 
 Requires Go (latest stable). Targets Ubuntu (current LTS and newer).
 
 ```sh
-make build        # static binary: bin/kmodtui
-./bin/kmodtui
+make build            # bin/kmodtui, bin/kmodtui-helper and the polkit policy
+./bin/kmodtui         # browsing works right away, no root needed
+
+sudo make install     # needed for changes: see "Making changes" below
 ```
 
-or `go run ./cmd/kmodtui`. `make check` runs the gofmt check, `go vet` and
-the tests.
+`make install` puts `kmodtui` in `/usr/local/bin`, `kmodtui-helper` in
+`/usr/local/libexec` and the polkit policy in `/usr/share/polkit-1/actions`.
+`sudo make uninstall` removes all three. For another prefix, build and
+install with the same one: `make build PREFIX=/opt/kmodtui && sudo make
+install PREFIX=/opt/kmodtui` (the helper path is compiled into kmodtui and
+written into the policy).
+
+`make check` runs the gofmt check, `go vet` and the tests.
 
 ## Layout
 
@@ -70,10 +75,12 @@ The bottom bar shows the keys that apply to the focused panel.
   suggests that module; `—` means unbound with no candidate. `Enter` jumps to
   the module (switching to "all" if it is not loaded).
 - **[3] Boot config**: entries in the two files kmodtui manages,
-  `/etc/modprobe.d/kmodtui.conf` and `/etc/modules-load.d/kmodtui.conf`
-  (displayed only in phase 1).
-- **[4] Changes**: pending follow-ups such as "initramfs update needed"
-  (phase 2).
+  `/etc/modprobe.d/kmodtui.conf` and `/etc/modules-load.d/kmodtui.conf`.
+  `d` removes the selected entry.
+- **[4] Changes**: follow-ups after a change, with `Enter` to fix them:
+  "initramfs update needed" when `/etc/modprobe.d` changed after the
+  initramfs was built, a blacklisted module that is still loaded, a module
+  set to load at boot that is not loaded.
 - **[0] Details**: everything about the selection in the last focused left
   panel. For a module: `modinfo` fields, signature, dependencies, the
   devices it drives, and parameters with their current values (root-only
@@ -101,7 +108,17 @@ when active, the filter and the "all" mode.
 | `↓` `↑` | filter prompt | Move the selection while typing |
 | `Esc` | Modules | Clear an active filter |
 | `A` | Modules tab | Toggle loaded / all modules |
+| `u` | Modules tab | Unload the selected module |
+| `l` | Modules tab | Load the selected module (in "all" mode) |
+| `b` | Modules tab | Blacklist it, or remove its blacklist entry |
+| `a` | Modules tab | Load it at boot, or stop loading it at boot |
+| `p` | Modules tab | Parameters: list, change, remove an at-next-load value |
 | `Enter` | Devices tab | Open the device's module in the Modules tab |
+| `d` | Boot config | Remove the selected entry |
+| `Enter` | Changes | Fix the selected item |
+| `Enter` / `y` | confirmation | Run (`y` only when there are warnings) |
+| `1` `2` | confirmation | Set a parameter now / at next load (toggle) |
+| `Esc` / `n` | confirmation | Cancel |
 | `R` | anywhere | Reload everything |
 | `?` | anywhere | Show all keybindings (`Esc` closes) |
 | `q` / `Ctrl-C` | anywhere | Quit |
@@ -129,6 +146,42 @@ as modprobe does. The device filter matches address, names, IDs
 | Candidate modules for an unbound device | `modprobe --resolve-alias <modalias>` |
 | kmodtui boot config | `cat /etc/modprobe.d/kmodtui.conf /etc/modules-load.d/kmodtui.conf` |
 | Effective blacklist / options | `modprobe --showconfig \| grep -w <module>` |
+| What a load or unload would do | `modprobe -n -v <module>`, `modprobe -n -v -r <module>` |
+| Load / unload | `sudo modprobe <module>`, `sudo modprobe -r <module>` |
+| Blacklist | `echo 'blacklist <module>' \| sudo tee -a /etc/modprobe.d/kmodtui.conf` |
+| Load at boot | `echo <module> \| sudo tee -a /etc/modules-load.d/kmodtui.conf` |
+| Set a parameter now | `echo <value> \| sudo tee /sys/module/<module>/parameters/<param>` |
+| Set a parameter at next load | `options <module> <param>=<value>` in `/etc/modprobe.d/kmodtui.conf` |
+| Rebuild the initramfs | `sudo update-initramfs -u` |
+
+## Making changes
+
+kmodtui itself never runs as root. Changes go through `kmodtui-helper`,
+which kmodtui starts with `pkexec` after you confirm:
+
+- **Confirmation first.** Every change opens a dialog with the exact
+  `pkexec kmodtui-helper …` command, the commands it amounts to, and a dry
+  run (`modprobe -n -v`) where that applies. Unloading a module that is in
+  use, or that drives a storage, network, display, wireless or input device
+  (directly or through a module that depends on it), or that provides a
+  mounted filesystem, shows a warning, and then only `y` runs it.
+- **Password prompt.** polkit asks for your password (a desktop dialog, or a
+  prompt in the terminal; kmodtui steps aside meanwhile). One authentication
+  covers a few minutes of further changes.
+- **What the helper can do** is fixed: `load`, `unload`, `set-param`,
+  `blacklist`, `unblacklist`, `boot-load`, `boot-unload` and
+  `update-initramfs`. It checks every module name against `modules.dep`,
+  uses only `/usr/sbin/modprobe` and `/usr/sbin/update-initramfs`, and edits
+  only `/etc/modprobe.d/kmodtui.conf` and `/etc/modules-load.d/kmodtui.conf`.
+  Other files in those directories are never touched; lines you add to
+  kmodtui's own files by hand are kept.
+- **Initramfs.** Blacklists and options also reach early boot only after the
+  initramfs is rebuilt. kmodtui shows "initramfs update needed" under Changes
+  until it is.
+
+You can also run the helper yourself, which is handy for scripts:
+`pkexec /usr/local/libexec/kmodtui-helper blacklist pcspkr`. Run it without
+arguments for the list of subcommands.
 
 ## Data sources
 
@@ -153,13 +206,17 @@ Notes:
 - Candidate modules for unbound devices come from `modules.alias` only;
   aliases defined in `/etc/modprobe.d` are not considered.
 - Some parameters are readable by root only; they show as `(root only)`.
+Parameters marked "read-only now" can only be set at the next load.
 
 ## Development
 
 ```
-cmd/kmodtui     entry point (-root DIR reads a fixture tree instead of /)
-internal/kmod   data sources and parsers, no UI; fixtures in testdata/
-internal/ui     gocui views, layout, keybindings and rendering
+cmd/kmodtui         entry point (-root DIR reads a fixture tree instead of /)
+cmd/kmodtui-helper  the privileged helper (no flags, fixed subcommands)
+internal/kmod       data sources, parsers and config editors, no UI
+internal/helper     the helper's logic, testable against a temporary root
+internal/ui         gocui views, layout, keybindings, dialogs and rendering
+packaging/          polkit policy template
 ```
 
 The UI uses [jesseduffield/gocui](https://github.com/jesseduffield/gocui)

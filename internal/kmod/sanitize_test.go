@@ -27,6 +27,11 @@ func TestClean(t *testing.T) {
 	}
 }
 
+func TestCleanLines(t *testing.T) {
+	got := CleanLines("rmmod bridge\r\nrmmod \x1b[31mstp\nrmmod llc")
+	assertEqual(t, "lines", got, "rmmod bridge\nrmmod \uFFFD[31mstp\nrmmod llc")
+}
+
 // A USB device chooses its own descriptor strings; the kernel passes them
 // through to sysfs. They must come out free of control characters.
 func TestHostileUSBStrings(t *testing.T) {

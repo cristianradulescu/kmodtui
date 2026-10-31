@@ -26,6 +26,13 @@ const (
 type fixtureRunner struct{}
 
 func (fixtureRunner) Run(name string, args ...string) ([]byte, error) {
+	if name == "modprobe" && slices.Contains(args, "-n") {
+		mod := args[len(args)-1]
+		if slices.Contains(args, "-r") {
+			return []byte("rmmod " + mod + "\n"), nil
+		}
+		return []byte("insmod /lib/modules/7.0.0-38-generic/kernel/" + mod + ".ko.zst\n"), nil
+	}
 	if name == "modinfo" && len(args) > 0 {
 		mod := args[len(args)-1]
 		b, err := os.ReadFile(filepath.Join(fixtureModinfo, mod+".txt"))
@@ -35,6 +42,21 @@ func (fixtureRunner) Run(name string, args ...string) ([]byte, error) {
 		return b, nil
 	}
 	return nil, &exec.Error{Name: name, Err: exec.ErrNotFound}
+}
+
+// fakeExecutor records helper invocations instead of running pkexec.
+type fakeExecutor struct {
+	unavailable error
+	calls       [][]string
+	output      string
+	err         error
+}
+
+func (f *fakeExecutor) available() error { return f.unavailable }
+
+func (f *fakeExecutor) run(args []string) (string, error) {
+	f.calls = append(f.calls, args)
+	return f.output, f.err
 }
 
 // newTestApp renders the app headlessly. gocui keeps the screen in a package
@@ -48,6 +70,7 @@ func newTestApp(t *testing.T, root string, w, h int) *App {
 	t.Cleanup(g.Close)
 	a := New(&kmod.Source{Root: root, Runner: fixtureRunner{}})
 	a.background = func(work func() func()) { work()() }
+	a.exec = &fakeExecutor{}
 	if err := a.init(g); err != nil {
 		t.Fatal(err)
 	}
@@ -63,10 +86,15 @@ func (a *App) redraw(t *testing.T) {
 }
 
 // press dispatches a key through the binding table the way gocui does:
-// bindings of the focused view first, then global ones.
+// the focused view's binding first; if it declines (ErrKeybindingNotHandled),
+// the first global binding for the key. Whatever error is left goes through
+// the Gui's ErrorHandler, as gocui's event loop does, and a non-nil result
+// is what would end MainLoop.
 func (a *App) press(t *testing.T, key any) error {
 	t.Helper()
 	cur := a.currentView()
+	var err error
+	handled := false
 	for _, global := range []bool{false, true} {
 		for _, b := range a.bindings {
 			if (b.views == nil) != global || !slices.Contains(b.keys, key) {
@@ -75,16 +103,19 @@ func (a *App) press(t *testing.T, key any) error {
 			if !global && !slices.Contains(b.views, cur) {
 				continue
 			}
-			err := a.wrap(b)(a.g, a.g.CurrentView())
-			if errors.Is(err, gocui.ErrKeybindingNotHandled) {
-				continue
-			}
-			a.redraw(t)
-			return err
+			err = a.wrap(b)(a.g, a.g.CurrentView())
+			handled = !errors.Is(err, gocui.ErrKeybindingNotHandled)
+			break
+		}
+		if handled {
+			break
 		}
 	}
+	if err != nil && !errors.Is(err, gocui.ErrQuit) && a.g.ErrorHandler != nil {
+		err = a.g.ErrorHandler(err)
+	}
 	a.redraw(t)
-	return nil
+	return err
 }
 
 // typeText feeds runes to the focused editable view through its editor.
@@ -206,9 +237,10 @@ func TestNavigationAndFocus(t *testing.T) {
 	}{
 		{'1', viewStatus, "Tainted by"},
 		{'3', viewBoot, "blacklist pcspkr"},
-		{'4', viewChanges, "No pending changes"},
-		{'0', viewDetails, "No pending changes"}, // Details keeps the last left panel
-		{gocui.KeyTab, viewLog, "No pending changes"},
+		// The fixture blacklists uvcvideo while it is loaded: a pending change.
+		{'4', viewChanges, "uvcvideo is blacklisted but loaded"},
+		{'0', viewDetails, "uvcvideo is blacklisted but loaded"}, // Details keeps the last left panel
+		{gocui.KeyTab, viewLog, "uvcvideo is blacklisted but loaded"},
 		{gocui.KeyTab, viewStatus, "Tainted by"},
 		{gocui.KeyBacktab, viewLog, "Tainted by"},
 		{'2', viewModules, "vboxdrv"},
