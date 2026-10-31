@@ -45,6 +45,8 @@ const Usage = `usage: kmodtui-helper <subcommand> [arguments]
                                   --boot: set PARAM=VALUE in ` + kmod.ModprobeConf + `
   set-param MODULE PARAM --clear-boot
                                   remove PARAM from ` + kmod.ModprobeConf + `
+  set-param MODULE --clear-boot-all
+                                  remove all options for MODULE from ` + kmod.ModprobeConf + `
   blacklist MODULE                add "blacklist MODULE" to ` + kmod.ModprobeConf + `
   unblacklist MODULE              remove it again
   boot-load MODULE                add MODULE to ` + kmod.ModulesLoadConf + `
@@ -129,8 +131,17 @@ func (env Env) run(p string, args ...string) error {
 }
 
 func (env Env) setParam(args []string) error {
+	if len(args) == 2 && args[1] == "--clear-boot-all" {
+		module := args[0]
+		if err := env.checkModule(module); err != nil {
+			return err
+		}
+		return env.editFile(kmod.ModprobeConf, func(c string) (string, bool) {
+			return kmod.ClearOptions(c, module)
+		}, "remove the options for "+module)
+	}
 	if len(args) < 3 {
-		return fmt.Errorf("%w: set-param MODULE PARAM VALUE [--now] [--boot] | set-param MODULE PARAM --clear-boot", ErrUsage)
+		return fmt.Errorf("%w: set-param MODULE PARAM VALUE [--now] [--boot] | set-param MODULE PARAM --clear-boot | set-param MODULE --clear-boot-all", ErrUsage)
 	}
 	module, param := args[0], args[1]
 	if err := env.checkModule(module); err != nil {

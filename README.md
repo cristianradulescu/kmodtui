@@ -165,9 +165,11 @@ which kmodtui starts with `pkexec` after you confirm:
   use, or that drives a storage, network, display, wireless or input device
   (directly or through a module that depends on it), or that provides a
   mounted filesystem, shows a warning, and then only `y` runs it.
-- **Password prompt.** polkit asks for your password (a desktop dialog, or a
-  prompt in the terminal; kmodtui steps aside meanwhile). One authentication
-  covers a few minutes of further changes.
+- **Password prompt.** polkit asks for your password for every change (a
+  desktop dialog, or a prompt in the terminal; kmodtui steps aside
+  meanwhile). The policy deliberately uses `auth_admin`, not
+  `auth_admin_keep`: a kept authorization would let the kmodtui process run
+  any helper subcommand for a few minutes without asking.
 - **What the helper can do** is fixed: `load`, `unload`, `set-param`,
   `blacklist`, `unblacklist`, `boot-load`, `boot-unload` and
   `update-initramfs`. It checks every module name against `modules.dep`,

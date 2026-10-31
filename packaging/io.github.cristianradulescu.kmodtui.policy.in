@@ -22,8 +22,10 @@
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
-      <!-- One authentication covers a few minutes; kmodtui confirms every action itself. -->
-      <allow_active>auth_admin_keep</allow_active>
+      <!-- A password for every change. auth_admin_keep would let the
+           authorized kmodtui process run any subcommand for a few minutes
+           without asking again. -->
+      <allow_active>auth_admin</allow_active>
     </defaults>
     <annotate key="org.freedesktop.policykit.exec.path">@HELPER@</annotate>
   </action>

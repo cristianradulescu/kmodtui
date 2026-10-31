@@ -208,6 +208,26 @@ func TestEditKeepsOtherLines(t *testing.T) {
 	}
 }
 
+func TestClearAllOptions(t *testing.T) {
+	env, _, _ := newEnv(t)
+	for _, s := range [][]string{
+		{"set-param", "nvme", "io_queue_depth", "512", "--boot"},
+		{"set-param", "nvme", "write_queues", "2", "--boot"},
+		{"blacklist", "e1000e"},
+		{"set-param", "nvme", "--clear-boot-all"},
+	} {
+		if err := Run(env, s); err != nil {
+			t.Fatalf("%v: %v", s, err)
+		}
+	}
+	if got := readConf(t, env, kmod.ModprobeConf); got != kmod.ConfHeader+"\nblacklist e1000e\n" {
+		t.Errorf("content = %q", got)
+	}
+	if err := Run(env, []string{"set-param", "-x", "--clear-boot-all"}); err == nil {
+		t.Error("invalid module name accepted")
+	}
+}
+
 func TestSetParamNow(t *testing.T) {
 	env, _, out := newEnv(t)
 	if err := Run(env, []string{"set-param", "nvme", "io_queue_depth", "512", "--now"}); err != nil {

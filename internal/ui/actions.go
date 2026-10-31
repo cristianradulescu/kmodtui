@@ -352,13 +352,12 @@ func (a *App) removeBootAction(e kmod.BootEntry) (*action, error) {
 	case kmod.BootLoad:
 		return a.bootLoadAction(e.Module, false), nil
 	case kmod.BootOptions:
-		act := &action{title: "Remove the options for " + e.Module, notes: []string{initramfsNote}}
-		for _, opt := range strings.Fields(e.Args) {
-			name, _, _ := strings.Cut(opt, "=")
-			act.args = append(act.args, []string{"set-param", e.Module, name, "--clear-boot"})
-		}
-		act.does = []string{"remove the " + cyan("options "+e.Module+" "+e.Args) + " line from " + kmod.ModprobeConf}
-		return act, nil
+		return &action{
+			title: "Remove the options for " + e.Module,
+			args:  [][]string{{"set-param", e.Module, "--clear-boot-all"}},
+			does:  []string{"remove every " + cyan("options "+e.Module) + " line from " + kmod.ModprobeConf},
+			notes: []string{"Current values stay until the module loads again.", initramfsNote},
+		}, nil
 	}
 	return nil, fmt.Errorf("kmodtui only removes blacklist, options and load entries. Edit %s line %d by hand", e.File, e.Line)
 }

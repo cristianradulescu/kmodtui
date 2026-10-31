@@ -119,7 +119,9 @@ end-to-end check of writes is the user's: they run `sudo make install`.
 ## Write rules
 
 - The TUI never runs as root. Writes go through `kmodtui-helper` via `pkexec`
-  with the polkit policy (`auth_admin_keep` for active sessions).
+  with the polkit policy. It uses `auth_admin` (a password for every
+  change); do not switch to `auth_admin_keep`, which would let the
+  authorized kmodtui process run any subcommand for a few minutes.
 - Fixed subcommands only: load, unload, set-param, blacklist, unblacklist,
   boot-load, boot-unload, update-initramfs. No arbitrary commands or paths.
 - Validate module names (`kmod.ValidModuleName`: `^[A-Za-z0-9_][A-Za-z0-9_-]*$`,

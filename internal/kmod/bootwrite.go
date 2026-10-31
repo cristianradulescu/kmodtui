@@ -121,6 +121,17 @@ func EditOption(content, module, param, value string) (string, bool) {
 	return joinConf(out), true
 }
 
+// ClearOptions removes every "options <module> ..." line from modprobe.d
+// content.
+func ClearOptions(content, module string) (string, bool) {
+	lines := splitConf(content)
+	match := func(i int) bool {
+		f := strings.Fields(lines[i])
+		return !continued(lines, i) && len(f) >= 2 && f[0] == "options" && Normalize(f[1]) == Normalize(module)
+	}
+	return editLines(lines, match, "", false)
+}
+
 // Options returns the parameters kmodtui's modprobe.d content sets for
 // module, as written there ("power_save=1").
 func Options(entries []BootEntry, module string) []string {

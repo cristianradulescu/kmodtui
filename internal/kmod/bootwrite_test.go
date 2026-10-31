@@ -143,6 +143,15 @@ func TestEditOption(t *testing.T) {
 	}
 }
 
+func TestClearOptions(t *testing.T) {
+	in := hdr + "options snd_hda_intel power_save=1\nblacklist pcspkr\noptions snd-hda-intel probe_mask=8\noptions iwlwifi power_save=1\n"
+	got, changed := ClearOptions(in, "snd_hda_intel")
+	assertEqual(t, "content", got, hdr+"blacklist pcspkr\noptions iwlwifi power_save=1\n")
+	assertEqual(t, "changed", changed, true)
+	_, changed = ClearOptions(got, "snd_hda_intel")
+	assertEqual(t, "changed again", changed, false)
+}
+
 // What the editors write, the parsers read back.
 func TestEditRoundTrip(t *testing.T) {
 	c, _ := EditBlacklist("", "pcspkr", true)

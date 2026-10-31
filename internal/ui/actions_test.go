@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/jesseduffield/gocui"
+
+	"github.com/cristianradulescu/kmodtui/internal/kmod"
 )
 
 func (a *App) fake() *fakeExecutor { return a.exec.(*fakeExecutor) }
@@ -328,4 +330,16 @@ func TestInactiveKeysDoNotQuit(t *testing.T) {
 		t.Errorf("focus = %q, want the confirm dialog to stay open", a.currentView())
 	}
 	assertCalls(t, a)
+}
+
+// Removing an options line is one helper call, so polkit prompts once.
+func TestRemoveOptionsIsOneCall(t *testing.T) {
+	a := newTestApp(t, fixtureRoot, 140, 45)
+	act, err := a.removeBootAction(kmod.BootEntry{Kind: kmod.BootOptions, Module: "snd_hda_intel", Args: "power_save=1 probe_mask=8"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := act.runs(); len(got) != 1 || strings.Join(got[0], " ") != "set-param snd_hda_intel --clear-boot-all" {
+		t.Errorf("runs = %q", got)
+	}
 }
