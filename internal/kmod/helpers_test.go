@@ -54,3 +54,5 @@ func assertEqual[T any](t *testing.T, name string, got, want T) {
 		t.Errorf("%s:\n got: %#v\nwant: %#v", name, got, want)
 	}
 }
+
+func stringsReader(s string) *strings.Reader { return strings.NewReader(s) }

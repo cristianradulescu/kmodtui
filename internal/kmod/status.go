@@ -148,6 +148,11 @@ type Status struct {
 	TaintFlags []TaintFlag
 }
 
+// KernelRelease reads the running kernel's release, like `uname -r`.
+func (s *Source) KernelRelease() (string, error) {
+	return s.readString("/proc/sys/kernel/osrelease")
+}
+
 // Status reads the kernel release, Secure Boot state and taint flags.
 // Fields that cannot be read keep their zero value; see the returned ops.
 func (s *Source) Status() (Status, []Op) {
@@ -155,7 +160,7 @@ func (s *Source) Status() (Status, []Op) {
 	var ops []Op
 
 	relOp := Op{Desc: "Kernel release", Cmd: "uname -r"}
-	st.Release, relOp.Err = s.readString("/proc/sys/kernel/osrelease")
+	st.Release, relOp.Err = s.KernelRelease()
 	ops = append(ops, relOp)
 
 	var sbOp Op

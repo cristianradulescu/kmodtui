@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!--
+  Lets pkexec run kmodtui-helper as root. The helper accepts only fixed
+  subcommands (load, unload, set-param, blacklist, unblacklist, boot-load,
+  boot-unload, update-initramfs) and writes only kmodtui's own files in
+  /etc/modprobe.d and /etc/modules-load.d.
+
+  @HELPER@ is replaced by the installed helper path at build time; pkexec
+  matches this action by that exact path.
+-->
+<policyconfig>
+  <vendor>kmodtui</vendor>
+  <vendor_url>https://github.com/cristianradulescu/kmodtui</vendor_url>
+
+  <action id="io.github.cristianradulescu.kmodtui.helper">
+    <description>Change kernel modules with kmodtui</description>
+    <message>Authentication is required to load, unload or configure kernel modules</message>
+    <icon_name>utilities-terminal</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <!-- One authentication covers a few minutes; kmodtui confirms every action itself. -->
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">@HELPER@</annotate>
+  </action>
+</policyconfig>
